@@ -3,8 +3,8 @@ import { Redis } from '@upstash/redis';
 
 // Initialize Redis with environment variables from Upstash
 const redis = new Redis({
-  url: process.env.STORAGE_URL,
-  token: process.env.STORAGE_REST_API_TOKEN,
+  url: process.env.KV_REST_API_URL,
+  token: process.env.KV_REST_API_TOKEN,
 });
 
 // Rate limiting config
