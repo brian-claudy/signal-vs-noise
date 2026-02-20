@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
+
+// Initialize Redis with environment variables from Upstash
+const redis = new Redis({
+  url: process.env.STORAGE_URL,
+  token: process.env.STORAGE_REST_API_TOKEN,
+});
 
 // Rate limiting config
 const RATE_LIMIT = {
@@ -29,7 +35,7 @@ export async function POST(request) {
     const costKey = `cost:today:${new Date().toISOString().split('T')[0]}`;
 
     // Check usage count
-    const usage = await kv.get(usageKey) || 0;
+    const usage = await redis.get(usageKey) || 0;
     
     if (usage >= RATE_LIMIT.FREE_TIER_CHECKS) {
       return NextResponse.json({ 
@@ -41,7 +47,7 @@ export async function POST(request) {
     }
 
     // Check daily cost budget (circuit breaker)
-    const costToday = await kv.get(costKey) || 0;
+    const costToday = await redis.get(costKey) || 0;
     if (costToday > RATE_LIMIT.DAILY_BUDGET) {
       return NextResponse.json({ 
         error: { 
@@ -70,10 +76,10 @@ export async function POST(request) {
     const data = await response.json();
 
     // Update usage counter (expire after 24 hours)
-    await kv.set(usageKey, usage + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
+    await redis.set(usageKey, usage + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
 
     // Update daily cost tracking
-    await kv.set(costKey, costToday + RATE_LIMIT.COST_PER_CHECK, { ex: 86400 }); // Expire at end of day
+    await redis.set(costKey, costToday + RATE_LIMIT.COST_PER_CHECK, { ex: 86400 }); // Expire at end of day
 
     // Return the response
     return NextResponse.json(data);
