@@ -816,21 +816,7 @@ useEffect(() => {
     const tools = [{ 
       type: "web_search_20250305", 
       name: "web_search",
-      max_uses: 5,
-      allowed_domains: [
-        "snopes.com",
-        "politifact.com",
-        "factcheck.org",
-        "reuters.com",
-        "apnews.com",
-        "ap.org",
-        "bbc.com",
-        "nytimes.com",
-        "washingtonpost.com",
-        "npr.org",
-        "cnn.com",
-        "theguardian.com"
-      ]
+      max_uses: 5
     }];
     let finalText = "";
     const MAX_TURNS = 5;
