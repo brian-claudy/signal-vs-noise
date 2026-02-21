@@ -176,12 +176,12 @@ function ClaimCard({ claim, index }) {
         <div style={{ flex: 1 }}>
           <p style={{ margin: 0, fontSize: 14.5, color: "#E8E8E8", lineHeight: 1.5 }}>{claim.claim}</p>
           {expanded && (
-            <p style={{ margin: "8px 0 0", fontSize: 13, color: "#B0B0B0", lineHeight: 1.6, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 8 }}>
+            <p style={{ margin: "8px 0 0", fontSize: 16, color: "#B0B0B0", lineHeight: 1.6, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 8 }}>
               {claim.explanation}
             </p>
           )}
         </div>
-        <span style={{ color: "#555", fontSize: 12, flexShrink: 0, marginTop: 2 }}>
+        <span style={{ color: "#E0E0E0", fontSize: 12, flexShrink: 0, marginTop: 2 }}>
           {expanded ? "▲" : "▼"}
         </span>
       </div>
@@ -410,7 +410,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
             {cfg.icon}
           </div>
           <div>
-            <div style={{ fontSize: 9, color: cfg.color, fontFamily: "var(--mono)", letterSpacing: 3 }}>
+            <div style={{ fontSize: 10, color: cfg.color, fontFamily: "var(--mono)", letterSpacing: 3 }}>
               VERDICT
             </div>
             <div style={{ 
@@ -471,7 +471,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
           </div>
           {result.factCheckMatch && (
             <span style={{
-              fontSize: 9, fontFamily: "var(--mono)",
+              fontSize: 10, fontFamily: "var(--mono)",
               background: "rgba(100,181,246,0.12)",
               border: "1px solid rgba(100,181,246,0.25)",
               borderRadius: 20, padding: "3px 10px",
@@ -580,10 +580,10 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
                 onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.025)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; e.currentTarget.style.transform = "translateX(0)"; }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 9, color: "#37474F", fontFamily: "var(--mono)", flexShrink: 0, background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: 3 }}>
+                  <span style={{ fontSize: 10, color: "#37474F", fontFamily: "var(--mono)", flexShrink: 0, background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: 3 }}>
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span style={{ fontSize: 13, color: "#90A8B8", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 400 }}>
+                  <span style={{ fontSize: 16, color: "#90A8B8", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 400 }}>
                     {cite.title || cite.url}
                   </span>
                   <span style={{ fontSize: 12, color: "#455A64", flexShrink: 0 }}>↗</span>
@@ -603,7 +603,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
                 )}
                 {cite.page_age && (
                   <div style={{ 
-                    fontSize: 9, 
+                    fontSize: 10, 
                     color: "#455A64", 
                     fontFamily: "var(--mono)",
                     paddingLeft: 30
@@ -709,7 +709,7 @@ Fact-checked with Signal vs Noise AI
           borderRadius: 8,
           color: "#546E7A",
           cursor: "pointer",
-          fontFamily: "var(--mono)", fontSize: 9, letterSpacing: 2,
+          fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 2,
           transition: "all 0.15s"
         }}
         onMouseEnter={e => {
@@ -758,7 +758,7 @@ Full analysis with sources:
           borderRadius: 8,
           color: "rgba(29,161,242,0.7)",
           cursor: "pointer",
-          fontFamily: "var(--mono)", fontSize: 9, letterSpacing: 2,
+          fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 2,
           transition: "all 0.15s"
         }}
         onMouseEnter={e => {
@@ -1369,7 +1369,7 @@ useEffect(() => {
                 animation: "pulse 2s infinite",
                 boxShadow: "0 0 6px rgba(229,57,53,0.8)"
               }} />
-              <span style={{ fontSize: 9, color: "#EF5350", fontFamily: "var(--mono)", letterSpacing: 3, fontWeight: 700 }}>
+              <span style={{ fontSize: 10, color: "#EF5350", fontFamily: "var(--mono)", letterSpacing: 3, fontWeight: 700 }}>
                 HYBRID AI · LIVE WEB SEARCH
               </span>
             </div>
@@ -1413,7 +1413,7 @@ useEffect(() => {
               NOISE
             </h1>
             <p style={{ 
-              color: "#777", fontSize: 14, margin: 0, 
+              color: "#B0B0B0", fontSize: 14, margin: 0, 
               fontFamily: "var(--body)", letterSpacing: 0.5,
               fontWeight: 300
             }}>
@@ -1438,10 +1438,10 @@ useEffect(() => {
               marginBottom: 20, paddingBottom: 14,
               borderBottom: "1px solid rgba(255,255,255,0.06)"
             }}>
-              <span style={{ fontSize: 9, color: "#555", fontFamily: "var(--mono)", letterSpacing: 3 }}>
+              <span style={{ fontSize: 10, color: "#E0E0E0", fontFamily: "var(--mono)", letterSpacing: 3 }}>
                 FACT-CHECK INPUT
               </span>
-              <span style={{ fontSize: 9, color: "rgba(229,57,53,0.8)", fontFamily: "var(--mono)", letterSpacing: 2 }}>
+              <span style={{ fontSize: 10, color: "rgba(229,57,53,0.8)", fontFamily: "var(--mono)", letterSpacing: 2 }}>
                 MORE CONTEXT = BETTER RESULTS
               </span>
             </div>
@@ -1595,7 +1595,7 @@ useEffect(() => {
                     borderRadius: 6,
                     color: quickCheckMode ? "#64B5F6" : "#666",
                     cursor: "pointer",
-                    fontSize: 9,
+                    fontSize: 10,
                     padding: "4px 8px",
                     fontFamily: "var(--mono)",
                     letterSpacing: 1,
@@ -1607,7 +1607,7 @@ useEffect(() => {
                   ⚡ QUICK
                 </button>
                 {quickCheckMode && (
-                  <span style={{ fontSize: 9, color: "#64B5F6", fontFamily: "var(--mono)" }}>
+                  <span style={{ fontSize: 10, color: "#64B5F6", fontFamily: "var(--mono)" }}>
                     Fast mode: ~5 sec
                   </span>
                 )}
@@ -1615,7 +1615,7 @@ useEffect(() => {
               {(urlInput || textInput || uploadedImage) && (
                 <button 
                   onClick={() => { setUrlInput(""); setTextInput(""); clearImage(); setResult(null); setError(null); }}
-                  style={{ background: "none", border: "none", color: "#777", cursor: "pointer", fontSize: 12, fontFamily: "var(--mono)" }}
+                  style={{ background: "none", border: "none", color: "#B0B0B0", cursor: "pointer", fontSize: 12, fontFamily: "var(--mono)" }}
                 >
                   CLEAR ALL ✕
                 </button>
@@ -1635,7 +1635,7 @@ useEffect(() => {
                       {loadingStatus}
                     </span>
                     {loadingSubtext && (
-                      <span style={{ fontSize: 9, color: "#666", letterSpacing: 0.5, fontFamily: "var(--body)", fontWeight: 300 }}>
+                      <span style={{ fontSize: 10, color: "#666", letterSpacing: 0.5, fontFamily: "var(--body)", fontWeight: 300 }}>
                         {loadingSubtext}
                       </span>
                     )}
@@ -1700,7 +1700,7 @@ useEffect(() => {
               borderRadius: 12,
               padding: "16px 20px",
               marginBottom: 24,
-              fontSize: 13,
+              fontSize: 16,
               color: "#EF9A9A"
             }}>
               ⚠ {error}
@@ -1749,7 +1749,7 @@ useEffect(() => {
           {result && (
             <div style={{ marginBottom: 32 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: "#555", fontFamily: "var(--mono)", letterSpacing: 2 }}>
+                <div style={{ fontSize: 11, color: "#E0E0E0", fontFamily: "var(--mono)", letterSpacing: 2 }}>
                   ANALYSIS RESULT
                 </div>
                 <button
@@ -1787,7 +1787,7 @@ useEffect(() => {
                       <span style={{ color: cfg.color, fontFamily: "var(--mono)", fontSize: 12, flexShrink: 0 }}>
                         {cfg.icon}
                       </span>
-                      <span style={{ fontSize: 13, color: "#999", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                      <span style={{ fontSize: 16, color: "#999", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                         {item.hasImage && "🖼 "}
                         {item.textInput ? item.textInput.substring(0, 60) : item.urlInput ? item.urlInput.substring(0, 60) : "Image analysis"}
                         {(item.textInput?.length > 60 || item.urlInput?.length > 60) ? "..." : ""}
@@ -1814,7 +1814,7 @@ useEffect(() => {
                 marginBottom: 12
               }}>
                 <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#E53935", opacity: 0.6 }} />
-                <span style={{ fontSize: 9, color: "#333", fontFamily: "var(--mono)", letterSpacing: 3 }}>POWERED BY CLAUDE AI</span>
+                <span style={{ fontSize: 10, color: "#333", fontFamily: "var(--mono)", letterSpacing: 3 }}>POWERED BY CLAUDE AI</span>
                 <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#E53935", opacity: 0.6 }} />
               </div>
               <p style={{ fontSize: 10, color: "#444455", fontFamily: "var(--mono)", lineHeight: 2, margin: 0 }}>
