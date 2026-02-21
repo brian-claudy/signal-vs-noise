@@ -1703,7 +1703,46 @@ useEffect(() => {
               fontSize: 16,
               color: "#EF9A9A"
             }}>
-              ⚠ {error}
+           <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+  <span style={{ fontSize: 20 }}>⚠</span>
+  <div style={{ flex: 1 }}>
+    <div style={{ marginBottom: 8 }}>{error}</div>
+    
+    {error.includes('Free tier limit') && (
+      <button
+        onClick={async () => {
+          try {
+            const response = await fetch('/api/create-checkout-session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                priceId: 'price_1T33WFRTl9hYt1sI62cCvbRp',
+                userId: visitorId
+              })
+            });
+            const { url } = await response.json();
+            window.location.href = url;
+          } catch (err) {
+            alert('Failed to start checkout. Please try again.');
+          }
+        }}
+        style={{
+          padding: '12px 24px',
+          background: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A6F 100%)',
+          border: 'none',
+          borderRadius: 8,
+          color: '#FFFFFF',
+          fontSize: 14,
+          fontWeight: 600,
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(229,57,53,0.3)'
+        }}
+      >
+        ⚡ Upgrade to Pro - $7/month
+      </button>
+    )}
+  </div>
+</div>
             </div>
           )}
 
