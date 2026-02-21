@@ -271,7 +271,6 @@ function generateReport(result, urlInput, textInput, hasImage) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
         <div style="font-size:22px;font-weight:900;letter-spacing:2px;">SIGNAL VS NOISE FACT CHECK</div>
-        <div style="font-size:12px;opacity:0.85;margin-top:3px;">SIGNAL VS NOISE Fact Check Report</div>
       </div>
       <div style="text-align:right;font-size:11px;opacity:0.8;">${dateStr}</div>
     </div>
