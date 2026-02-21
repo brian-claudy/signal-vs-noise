@@ -30,20 +30,26 @@ export async function POST(request) {
     }
 
     // Create composite key for rate limiting
-    const userId = `${fingerprint}|${ip}`;
+    const userId = fingerprint; // Use just fingerprint as user ID
     const usageKey = `usage:${userId}`;
     const costKey = `cost:today:${new Date().toISOString().split('T')[0]}`;
 
-    // Check usage count
-    const usage = await redis.get(usageKey) || 0;
+    // Check if user is Pro subscriber
+    const isPro = await redis.get(`user:${userId}:pro`);
     
-    if (usage >= RATE_LIMIT.FREE_TIER_CHECKS) {
-      return NextResponse.json({ 
-        error: { 
-          message: 'Free tier limit reached. You\'ve used your 2 free fact-checks.',
-          code: 'rate_limit_exceeded'
-        } 
-      }, { status: 429 });
+    // Only apply rate limiting for free tier users
+    if (!isPro) {
+      const usage = await redis.get(usageKey) || 0;
+      
+      if (usage >= RATE_LIMIT.FREE_TIER_CHECKS) {
+        return NextResponse.json({ 
+          error: { 
+            message: 'Free tier limit reached. You\'ve used your 2 free fact-checks. Upgrade to Pro for unlimited access!',
+            code: 'rate_limit_exceeded',
+            upgradeUrl: '/upgrade'
+          } 
+        }, { status: 429 });
+      }
     }
 
     // Check daily cost budget (circuit breaker)
@@ -75,8 +81,11 @@ export async function POST(request) {
 
     const data = await response.json();
 
-    // Update usage counter (expire after 24 hours)
-    await redis.set(usageKey, usage + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
+    // Update usage counter (only for free tier users)
+    if (!isPro) {
+      const usage = await redis.get(usageKey) || 0;
+      await redis.set(usageKey, usage + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
+    }
 
     // Update daily cost tracking
     await redis.set(costKey, costToday + RATE_LIMIT.COST_PER_CHECK, { ex: 86400 }); // Expire at end of day
