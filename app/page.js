@@ -1082,9 +1082,10 @@ useEffect(() => {
         }, 400);
       }
 
-    } catch (err) {
-      setError(err.message || "Something went wrong. Please try again.");
-    } finally {
+   } catch (err) {
+  console.log('FACT-CHECK ERROR:', err.message);
+  setError(err.message || "Something went wrong. Please try again.");
+} finally {
       setLoading(false);
     }
   };
