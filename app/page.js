@@ -695,7 +695,10 @@ Fact-checked with Signal vs Noise AI
                 text: shareText,
                 url: window.location.href
               });
-            } catch (err) {
+catch (err) {
+  console.log('ERROR:', err.message); // ADD THIS LINE
+  setError(err.message || "Something went wrong. Please try again.");
+}
               if (err.name !== 'AbortError') console.log('Share failed:', err);
             }
           } else {
