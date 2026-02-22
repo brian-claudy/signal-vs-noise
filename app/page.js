@@ -1838,7 +1838,7 @@ const parsed = parseJSON(quickResult);
                   ANALYSIS RESULT
                 </div>
                 <button
-                  onClick={() => { setInput(""); setResult(null); setError(null); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                  onClick={() => { setTextInput(""); setUrlInput("");; setResult(null); setError(null); setTimeout(() => textareaRef.current?.focus(), 50); }}
                   style={{
                     background: "rgba(255,255,255,0.05)",
                     border: "1px solid rgba(255,255,255,0.12)",
