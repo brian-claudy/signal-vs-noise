@@ -24,6 +24,11 @@ export async function POST(request) {
     // Get user fingerprint from request headers (will come from FingerprintJS)
     const fingerprint = request.headers.get('x-fingerprint-id');
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    console.log('RATE LIMIT CHECK - fingerprint:', fingerprint, 'ip:', ip); // ADD THIS
+
+if (!fingerprint) {
+  return NextResponse.json({ error: { message: 'Missing fingerprint ID' } }, { status: 400 });
+}
     
     if (!fingerprint) {
       return NextResponse.json({ error: { message: 'Missing fingerprint ID' } }, { status: 400 });
