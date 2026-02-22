@@ -980,14 +980,6 @@ useEffect(() => {
           ? messageContent
           : userMessage;
         
-        const quickResult = await runAgenticLoop(
-          QUICK_CHECK_PROMPT,
-          quickMessage,
-          "claude-haiku-4-5-20251001",
-          controller,
-          "CHECKING"
-        );
-        
        const quickResult = await runAgenticLoop(
   QUICK_CHECK_PROMPT,
   quickMessage,
