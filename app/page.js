@@ -687,7 +687,7 @@ ${result.claims.slice(0, 3).map((c, i) => `${i+1}. ${c.status}: ${c.claim}`).joi
 Fact-checked with Signal vs Noise AI
 `;
 
-          // Try native share first (mobile), fallback to clipboard (desktop)
+         // Try native share first (mobile), fallback to clipboard (desktop)
           if (navigator.share) {
             try {
               await navigator.share({
@@ -695,10 +695,7 @@ Fact-checked with Signal vs Noise AI
                 text: shareText,
                 url: window.location.href
               });
-catch (err) {
-  console.log('ERROR:', err.message); // ADD THIS LINE
-  setError(err.message || "Something went wrong. Please try again.");
-}
+            } catch (err) {
               if (err.name !== 'AbortError') console.log('Share failed:', err);
             }
           } else {
