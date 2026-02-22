@@ -36,14 +36,10 @@ ESCALATION RULES — set escalate=true if ANY of the following apply:
 - Anything that feels borderline, nuanced, or high-stakes
 When in doubt — ESCALATE. It is always better to over-escalate than miss something.
 
-CRITICAL OUTPUT RULES:
-- Respond ONLY with valid JSON. No prose. No markdown fences.
-- Keep all strings under 200 characters.
-- No line breaks or special characters inside string values.
+CRITICAL: You MUST respond with ONLY valid JSON. Even if the claim is obviously true or false, you MUST still return JSON. No exceptions. No prose. No explanations. ONLY the JSON object below.
 
-Required JSON (output this and nothing else):
+Required JSON format:
 {"escalate":true|false,"escalateReason":"One sentence reason if escalating, empty string if not","initialConfidence":0-100,"claimCategories":["category1","category2"],"quickSummary":"One sentence description of what this post claims"}`;
-
 // ── Full analysis prompt used by both Haiku (simple) and Sonnet (escalated) ──
 const ANALYSIS_PROMPT = `You are a world-class fact-checker and misinformation analyst with access to real-time web search. Analyze social media claims with rigorous, evidence-based reasoning.
 
