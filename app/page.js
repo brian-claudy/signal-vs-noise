@@ -879,13 +879,18 @@ useEffect(() => {
   };
 
   // ── JSON parse helper ─────────────────────────────────────────────────────
-  const parseJSON = (text) => {
+ const parseJSON = (text) => {
+  try {
     let clean = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
     const first = clean.indexOf("{"), last = clean.lastIndexOf("}");
     if (first !== -1 && last !== -1) clean = clean.slice(first, last + 1);
-    clean = clean.replace(/,\s*([}\]])/g, "$1").replace(/[ -]/g, " ");
+    clean = clean.replace(/,\s*([}\]])/g, "$1").replace(/[-]/g, " ");
     return JSON.parse(clean);
-  };
+  } catch (e) {
+    console.error('JSON PARSE ERROR:', e, 'TEXT:', text);
+    throw new Error('Failed to parse fact-check result');
+  }
+};
 
   const isUrl = (str) => {
     return str.includes("instagram.com") || str.includes("twitter.com") || 
@@ -983,7 +988,17 @@ useEffect(() => {
           "CHECKING"
         );
         
-        const parsed = parseJSON(quickResult);
+       const quickResult = await runAgenticLoop(
+  QUICK_CHECK_PROMPT,
+  quickMessage,
+  "claude-haiku-4-5-20251001",
+  controller,
+  "CHECKING"
+);
+
+console.log('QUICK RESULT:', quickResult); // ADD THIS LINE
+
+const parsed = parseJSON(quickResult);
         parsed._modelInfo = { model: "haiku", escalated: false };
         setModelInfo(parsed._modelInfo);
         setResult(parsed);
