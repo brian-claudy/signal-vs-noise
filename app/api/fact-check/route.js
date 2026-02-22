@@ -41,6 +41,11 @@ if (!fingerprint) {
 
     // Check if user is Pro subscriber
     const isPro = await redis.get(`user:${userId}:pro`);
+    console.log('USER:', userId, 'isPro:', isPro); // ADD THIS
+
+if (!isPro) {
+  const usage = await redis.get(usageKey) || 0;
+  console.log('USAGE CHECK:', usageKey, '=', usage, '/ limit:', RATE_LIMIT.FREE_TIER_CHECKS); // ADD THIS
     
     // Only apply rate limiting for free tier users
     if (!isPro) {
