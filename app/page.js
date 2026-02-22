@@ -1,3 +1,4 @@
+'use client';
 import { Bebas_Neue, DM_Sans, JetBrains_Mono } from 'next/font/google';
 
 const bebasNeue = Bebas_Neue({ 
@@ -5,7 +6,6 @@ const bebasNeue = Bebas_Neue({
   subsets: ['latin'],
   display: 'swap',
 });
-
 const dmSans = DM_Sans({ 
   weight: ['300', '400', '500', '600'],
   subsets: ['latin'],
@@ -17,9 +17,7 @@ const jetBrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   display: 'swap',
 });
-'use client';
 import { useState, useRef, useCallback, useEffect } from 'react';
-
 // ── Haiku triage prompt: fast initial scan + escalation decision ─────────────
 const HAIKU_TRIAGE_PROMPT = `You are a fact-check triage analyst. Your job is to do a quick initial analysis of a social media claim and decide whether it needs deeper investigation by a more powerful model.
 
