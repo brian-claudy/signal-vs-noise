@@ -342,10 +342,10 @@ function generateReport(result, urlInput, textInput, hasImage) {
       <p style="font-size:13px;color:#444;line-height:1.6;">${result.bottomLine || ""}</p>
     </div>
 
-    ${urlInput || textInput || hasImage ? `
-    <!-- Input Provided -->
+    ${url || text || hasImage ? `
+    <!--  Provided -->
     <div style="background:#fafafa;border:1px solid #e8e8e8;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
-      <div style="font-size:10px;color:#888;font-weight:700;letter-spacing:2px;margin-bottom:6px;">INPUT PROVIDED</div>
+      <div style="font-size:10px;color:#888;font-weight:700;letter-spacing:2px;margin-bottom:6px;"> PROVIDED</div>
       ${urlInput ? `<p style="font-size:11px;color:#999;margin:0 0 6px;"><strong>URL:</strong> ${urlInput}</p>` : ""}
       ${textInput ? `<p style="font-size:12px;color:#666;line-height:1.6;word-break:break-word;margin:0;">${textInput.substring(0, 500)}${textInput.length > 500 ? "..." : ""}</p>` : ""}
       ${hasImage ? `<p style="font-size:11px;color:#999;margin:${textInput ? "6px" : "0"} 0 0;"><em>🖼 Image uploaded and analyzed</em></p>` : ""}
@@ -1040,9 +1040,8 @@ const parsed = parseJSON(quickResult);
       setLoadingStatus("HAIKU SCANNING...");
       setLoadingSubtext("Reading claim and gathering context");
       const triageMessage = uploadedImage 
-        ? `Quick triage scan — the user uploaded an image${input.trim() ? " with context: " + input.trim() : ""}. Determine if this needs escalation.`
-        : `Quick triage scan of this claim: ${typeof userMessage === 'string' ? userMessage : 'see content'}`;
-
+  ? `Quick triage scan — the user uploaded an image${textInput.trim() ? " with context: " + textInput.trim() : ""}. Determine if this needs escalation.`
+  : `Quick triage scan of this claim: ${typeof userMessage === 'string' ? userMessage : 'see content'}`;
       const triageText = await runAgenticLoop(
         HAIKU_TRIAGE_PROMPT,
         triageMessage,
