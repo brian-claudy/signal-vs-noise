@@ -92,17 +92,24 @@ const DEMO_CLAIM = "Breaking: The CDC just admitted that 90% of vaccinated peopl
 // ── Quick Check mode (Haiku-only, fast, less detailed) ────────────────────────
 const QUICK_CHECK_PROMPT = `You are a fast fact-checker. Quickly assess this claim with 1-2 web searches.
 
+CRITICAL ANTI-HALLUCINATION RULES:
+- Only cite facts you actually found in your search results
+- If searches return no clear evidence, use verdict "UNVERIFIABLE"
+- NEVER invent statistics, dates, or quotes
+- All citations must be real URLs from your actual searches
+
 PROCESS:
 1. Run 1-2 targeted searches to verify the core claim
-2. Output a quick verdict as JSON
+2. If searches are inconclusive or contradictory, use "UNVERIFIABLE"
+3. Output a quick verdict as JSON
 
 CRITICAL OUTPUT RULES:
 - Respond ONLY with valid JSON. No prose. No markdown.
 - Keep all strings under 150 characters.
+- Only include URLs you actually retrieved in searches.
 
 Required JSON (output this and nothing else):
-{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"One sentence verdict under 150 chars.","bottomLine":"Quick takeaway under 150 chars.","citations":[{"title":"Source","url":"https://..."}]}`;
-
+{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"One sentence verdict under 150 chars based on actual search results.","bottomLine":"Quick takeaway under 150 chars.","citations":[{"title":"Source","url":"https://..."}]}`;
 const verdictConfig = {
   "FACT": { 
     color: "#00C851", 
