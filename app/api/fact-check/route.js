@@ -40,27 +40,24 @@ if (!fingerprint) {
     const costKey = `cost:today:${new Date().toISOString().split('T')[0]}`;
 
     // Check if user is Pro subscriber
-    const isPro = await redis.get(`user:${userId}:pro`);
-    console.log('USER:', userId, 'isPro:', isPro); // ADD THIS
+ const isPro = await redis.get(`user:${userId}:pro`);
+console.log('USER:', userId, 'isPro:', isPro);
 
+// Only apply rate limiting for free tier users
 if (!isPro) {
   const usage = await redis.get(usageKey) || 0;
-  console.log('USAGE CHECK:', usageKey, '=', usage, '/ limit:', RATE_LIMIT.FREE_TIER_CHECKS); // ADD THIS
-    
-    // Only apply rate limiting for free tier users
-    if (!isPro) {
-      const usage = await redis.get(usageKey) || 0;
-      
-      if (usage >= RATE_LIMIT.FREE_TIER_CHECKS) {
-        return NextResponse.json({ 
-          error: { 
-            message: 'Free tier limit reached. You\'ve used your 2 free fact-checks. Upgrade to Pro for unlimited access!',
-            code: 'rate_limit_exceeded',
-            upgradeUrl: '/upgrade'
-          } 
-        }, { status: 429 });
-      }
-    }
+  console.log('USAGE CHECK:', usageKey, '=', usage, '/ limit:', RATE_LIMIT.FREE_TIER_CHECKS);
+  
+  if (usage >= RATE_LIMIT.FREE_TIER_CHECKS) {
+    return NextResponse.json({ 
+      error: { 
+        message: 'Free tier limit reached. You\'ve used your 2 free fact-checks. Upgrade to Pro for unlimited access!',
+        code: 'rate_limit_exceeded',
+        upgradeUrl: '/upgrade'
+      } 
+    }, { status: 429 });
+  }
+}
 
     // Check daily cost budget (circuit breaker)
     const costToday = await redis.get(costKey) || 0;
