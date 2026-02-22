@@ -1,3 +1,22 @@
+import { Bebas_Neue, DM_Sans, JetBrains_Mono } from 'next/font/google';
+
+const bebasNeue = Bebas_Neue({ 
+  weight: '400',
+  subsets: ['latin'],
+  display: 'swap',
+});
+
+const dmSans = DM_Sans({ 
+  weight: ['300', '400', '500', '600'],
+  subsets: ['latin'],
+  display: 'swap',
+});
+
+const jetBrainsMono = JetBrains_Mono({ 
+  weight: ['400', '700'],
+  subsets: ['latin'],
+  display: 'swap',
+});
 'use client';
 import { useState, useRef, useCallback, useEffect } from 'react';
 
@@ -1096,7 +1115,6 @@ useEffect(() => {
   return (
     <>
       <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&display=swap&display=block');
         :root {
           --red: #E53935;
           --red-bright: #FF1744;
@@ -1108,9 +1126,9 @@ useEffect(() => {
           --text: #E8E8E8;
           --text-muted: #666;
           --text-dim: #444;
-          --mono: 'JetBrains Mono', monospace;
-          --display: 'Bebas Neue', cursive;
-          --body: 'DM Sans', sans-serif;
+          --mono: ${jetBrainsMono.style.fontFamily}, monospace;
+          --display: ${bebasNeue.style.fontFamily}, cursive;
+          --body: ${dmSans.style.fontFamily}, sans-serif;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
