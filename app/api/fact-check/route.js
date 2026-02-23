@@ -17,6 +17,23 @@ const RATE_LIMIT = {
 
 export async function POST(request) {
   try {
+    const body = await request.json();
+    const { model, max_tokens, system, tools, messages } = body;
+    
+    // Input validation
+    if (!model || !messages || !Array.isArray(messages)) {
+      return NextResponse.json({ 
+        error: { message: 'Invalid request format' } 
+      }, { status: 400 });
+    }
+    
+    // Validate message content length (prevent abuse)
+    const totalLength = JSON.stringify(messages).length;
+    if (totalLength > 50000) { // ~50KB limit
+      return NextResponse.json({ 
+        error: { message: 'Request too large. Please use shorter text or smaller images.' } 
+      }, { status: 413 });
+    }
     // Get request body
     const body = await request.json();
     const { model, max_tokens, system, tools, messages } = body;
