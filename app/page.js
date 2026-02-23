@@ -18,8 +18,10 @@ const jetBrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   display: 'swap',
 });
+
 import { useState, useRef, useCallback, useEffect } from 'react';
-// ── Haiku triage prompt: fast initial scan + escalation decision ─────────────
+
+// ── Haiku triage prompt ─────────────────────────────────────────────────────
 const HAIKU_TRIAGE_PROMPT = `You are a fact-check triage analyst. Your job is to do a quick initial analysis of a social media claim and decide whether it needs deeper investigation by a more powerful model.
 
 STEP 1 — Use web_search (1-2 searches max) to get basic context on the claim.
@@ -47,7 +49,8 @@ CRITICAL: You MUST respond with ONLY valid JSON. Even if the claim is obviously 
 
 Required JSON format:
 {"escalate":true|false,"escalateReason":"One sentence reason if escalating, empty string if not","initialConfidence":0-100,"claimCategories":["category1","category2"],"quickSummary":"One sentence description of what this post claims"}`;
-// ── Full analysis prompt used by both Haiku (simple) and Sonnet (escalated) ──
+
+// ── Full analysis prompt ────────────────────────────────────────────────────
 const ANALYSIS_PROMPT = `You are a world-class fact-checker and misinformation analyst with access to real-time web search. Analyze social media claims with rigorous, evidence-based reasoning.
 
 CRITICAL ANTI-HALLUCINATION RULES:
@@ -94,9 +97,7 @@ Required JSON structure (output this and nothing else after searching):
 
 Be direct and specific. Name exact tactics. Call out hashtags. Base everything on your actual search findings. If you cannot verify something, say so clearly.`;
 
-const DEMO_CLAIM = "Breaking: The CDC just admitted that 90% of vaccinated people have severe side effects. Mainstream media is hiding this!";
-
-// ── Quick Check mode (Haiku-only, fast, less detailed) ────────────────────────
+// ── Quick Check prompt ──────────────────────────────────────────────────────
 const QUICK_CHECK_PROMPT = `You are a fast fact-checker. Quickly assess this claim with 1-2 web searches.
 
 CRITICAL ANTI-HALLUCINATION RULES:
@@ -117,49 +118,16 @@ CRITICAL OUTPUT RULES:
 
 Required JSON (output this and nothing else):
 {"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"One sentence verdict under 150 chars based on actual search results.","bottomLine":"Quick takeaway under 150 chars.","citations":[{"title":"Source","url":"https://..."}]}`;
+
+const DEMO_CLAIM = "Breaking: The CDC just admitted that 90% of vaccinated people have severe side effects. Mainstream media is hiding this!";
+
 const verdictConfig = {
-  "FACT": { 
-    color: "#00C851", 
-    bg: "rgba(0, 200, 81, 0.12)", 
-    border: "rgba(0, 200, 81, 0.4)",
-    icon: "✓",
-    label: "VERIFIED FACT"
-  },
-  "MOSTLY FACT": { 
-    color: "#7BC67E", 
-    bg: "rgba(123, 198, 126, 0.12)", 
-    border: "rgba(123, 198, 126, 0.4)",
-    icon: "◑",
-    label: "MOSTLY ACCURATE"
-  },
-  "MISLEADING": { 
-    color: "#FFB300", 
-    bg: "rgba(255, 179, 0, 0.12)", 
-    border: "rgba(255, 179, 0, 0.4)",
-    icon: "⚠",
-    label: "MISLEADING"
-  },
-  "MOSTLY FALSE": { 
-    color: "#FF7043", 
-    bg: "rgba(255, 112, 67, 0.12)", 
-    border: "rgba(255, 112, 67, 0.4)",
-    icon: "✕",
-    label: "MOSTLY FALSE"
-  },
-  "FALSE": { 
-    color: "#FF1744", 
-    bg: "rgba(255, 23, 68, 0.12)", 
-    border: "rgba(255, 23, 68, 0.4)",
-    icon: "✕",
-    label: "FALSE"
-  },
-  "UNVERIFIABLE": { 
-    color: "#90A4AE", 
-    bg: "rgba(144, 164, 174, 0.12)", 
-    border: "rgba(144, 164, 174, 0.4)",
-    icon: "?",
-    label: "UNVERIFIABLE"
-  }
+  "FACT": { color: "#00C851", bg: "rgba(0, 200, 81, 0.12)", border: "rgba(0, 200, 81, 0.4)", icon: "✓", label: "VERIFIED FACT" },
+  "MOSTLY FACT": { color: "#7BC67E", bg: "rgba(123, 198, 126, 0.12)", border: "rgba(123, 198, 126, 0.4)", icon: "◑", label: "MOSTLY ACCURATE" },
+  "MISLEADING": { color: "#FFB300", bg: "rgba(255, 179, 0, 0.12)", border: "rgba(255, 179, 0, 0.4)", icon: "⚠", label: "MISLEADING" },
+  "MOSTLY FALSE": { color: "#FF7043", bg: "rgba(255, 112, 67, 0.12)", border: "rgba(255, 112, 67, 0.4)", icon: "✕", label: "MOSTLY FALSE" },
+  "FALSE": { color: "#FF1744", bg: "rgba(255, 23, 68, 0.12)", border: "rgba(255, 23, 68, 0.4)", icon: "✕", label: "FALSE" },
+  "UNVERIFIABLE": { color: "#90A4AE", bg: "rgba(144, 164, 174, 0.12)", border: "rgba(144, 164, 174, 0.4)", icon: "?", label: "UNVERIFIABLE" }
 };
 
 const claimStatusConfig = {
@@ -231,7 +199,6 @@ function ClaimCard({ claim, index }) {
     </div>
   );
 }
-
 function generateReport(result, urlInput, textInput, hasImage) {
   const verdictLabels = {
     "FACT": "VERIFIED FACT", "MOSTLY FACT": "MOSTLY ACCURATE",
@@ -309,7 +276,6 @@ function generateReport(result, urlInput, textInput, hasImage) {
 </head>
 <body>
 <div class="page">
-  <!-- Header -->
   <div style="background:${vColor};padding:22px 28px 18px;color:white;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
@@ -318,10 +284,7 @@ function generateReport(result, urlInput, textInput, hasImage) {
       <div style="text-align:right;font-size:11px;opacity:0.8;">${dateStr}</div>
     </div>
   </div>
-
   <div style="padding:24px 28px;">
-
-    <!-- Verdict -->
     <div style="background:${vColor}18;border:1.5px solid ${vColor}55;border-radius:10px;padding:18px 20px;margin-bottom:18px;">
       <div style="font-size:10px;color:${vColor};font-weight:700;letter-spacing:2px;margin-bottom:4px;">VERDICT</div>
       <div style="font-size:26px;font-weight:900;color:${vColor};letter-spacing:1px;">${vLabel}</div>
@@ -336,58 +299,41 @@ function generateReport(result, urlInput, textInput, hasImage) {
       <p style="font-size:14px;color:#333;font-style:italic;margin-top:8px;">"${result.summary || ""}"</p>
       ${modelBadgeHtml}
     </div>
-
-    <!-- Bottom Line -->
     <div style="background:#fafafa;border:1px solid #e8e8e8;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-size:10px;color:#888;font-weight:700;letter-spacing:2px;margin-bottom:6px;">BOTTOM LINE</div>
       <p style="font-size:13px;color:#444;line-height:1.6;">${result.bottomLine || ""}</p>
     </div>
-
     ${urlInput || textInput || hasImage ? `
-    <!-- Input Provided -->
     <div style="background:#fafafa;border:1px solid #e8e8e8;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-size:10px;color:#888;font-weight:700;letter-spacing:2px;margin-bottom:6px;">INPUT PROVIDED</div>
       ${urlInput ? `<p style="font-size:11px;color:#999;margin:0 0 6px;"><strong>URL:</strong> ${urlInput}</p>` : ""}
       ${textInput ? `<p style="font-size:12px;color:#666;line-height:1.6;word-break:break-word;margin:0;">${textInput.substring(0, 500)}${textInput.length > 500 ? "..." : ""}</p>` : ""}
       ${hasImage ? `<p style="font-size:11px;color:#999;margin:${textInput ? "6px" : "0"} 0 0;"><em>🖼 Image uploaded and analyzed</em></p>` : ""}
     </div>` : ""}
-
     ${claimsHtml ? `
-    <!-- Claims -->
     <div style="margin-bottom:16px;">
       <div style="font-size:10px;color:#888;font-weight:700;letter-spacing:2px;margin-bottom:10px;">CLAIMS ANALYZED</div>
       ${claimsHtml}
     </div>` : ""}
-
     ${result.context ? `
-    <!-- Context -->
     <div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-size:10px;color:#1565c0;font-weight:700;letter-spacing:2px;margin-bottom:6px;">CONTEXT</div>
       <p style="font-size:13px;color:#1a237e;line-height:1.6;">${result.context}</p>
     </div>` : ""}
-
     ${redFlagsHtml ? `
-    <!-- Red Flags -->
     <div style="background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-size:10px;color:#c62828;font-weight:700;letter-spacing:2px;margin-bottom:8px;">RED FLAGS & MANIPULATION TACTICS</div>
       <ul style="padding-left:16px;">${redFlagsHtml}</ul>
     </div>` : ""}
-
     ${citationsHtml ? `
-    <!-- Citations -->
     <div style="margin-bottom:16px;">
       <div style="font-size:10px;color:#607d8b;font-weight:700;letter-spacing:2px;margin-bottom:8px;">SOURCES & CITATIONS</div>
       ${citationsHtml}
     </div>` : ""}
-
-    <!-- Print tip -->
     <div class="no-print" style="margin-top:20px;padding:12px 14px;background:#e8f5e9;border-radius:6px;font-size:11px;color:#2e7d32;text-align:center;">
       💡 To save as PDF: use your browser's <strong>File → Print → Save as PDF</strong>
     </div>
-
   </div>
-
-  <!-- Footer -->
   <div style="background:#f5f5f5;border-top:1px solid #e0e0e0;padding:12px 28px;text-align:center;">
     <span style="font-size:10px;color:#aaa;letter-spacing:1px;">GENERATED BY SIGNAL VS NOISE FACT CHECK · ${dateStr}</span>
   </div>
@@ -395,7 +341,6 @@ function generateReport(result, urlInput, textInput, hasImage) {
 </body>
 </html>`;
 
-  // Trigger download
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -406,8 +351,6 @@ function generateReport(result, urlInput, textInput, hasImage) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
-
-
 function ResultPanel({ result, urlInput, textInput, hasImage }) {
   const cfg = verdictConfig[result.verdict] || verdictConfig["UNVERIFIABLE"];
   const [showRedFlags, setShowRedFlags] = useState(false);
@@ -424,7 +367,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
 
   return (
     <div style={{ animation: "fadeSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-      {/* Verdict Hero */}
       <div style={{
         background: cfg.bg,
         border: `1px solid ${cfg.border}`,
@@ -475,7 +417,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         </p>
         <ConfidenceMeter value={result.confidence} />
 
-        {/* Model badge */}
         {result._modelInfo && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
             <span style={{
@@ -501,7 +442,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         )}
       </div>
 
-      {/* Bottom Line */}
       <div className="result-card" style={{
         background: "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
         border: "1px solid rgba(255,255,255,0.09)",
@@ -528,7 +468,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         </p>
       </div>
 
-      {/* Claims Breakdown */}
       {result.claims && result.claims.length > 0 && (
         <div style={{ marginBottom: 14, animation: "fadeUp 0.4s 0.2s ease both" }}>
           <div className="section-label" style={{ color: "#666" }}>
@@ -538,7 +477,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         </div>
       )}
 
-      {/* Context */}
       {result.context && (
         <div className="result-card" style={{
           background: "linear-gradient(145deg, rgba(100,181,246,0.07), rgba(100,181,246,0.03))",
@@ -553,7 +491,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         </div>
       )}
 
-      {/* Red Flags */}
       {result.redFlags && result.redFlags.length > 0 && (
         <div className="result-card" style={{
           background: "linear-gradient(145deg, rgba(255,23,68,0.08), rgba(255,23,68,0.03))",
@@ -592,7 +529,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         </div>
       )}
 
-      {/* Citations */}
       {result.citations && result.citations.length > 0 && (
         <div className="result-card" style={{
           background: "rgba(255,255,255,0.02)",
@@ -603,8 +539,8 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
             SOURCES & CITATIONS
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-{result.citations.map((cite, i) => (
-              <a
+            {result.citations.map((cite, i) => (
+              
                 key={i}
                 href={cite.url}
                 target="_blank"
@@ -655,7 +591,10 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
                 )}
               </a>
             ))}
-      {/* Export Button */}
+          </div>
+        </div>
+      )}
+
       <button
         onClick={handleExport}
         disabled={exporting}
@@ -697,7 +636,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         )}
       </button>
 
-      {/* Share Results - Native share on mobile, clipboard on desktop */}
       <button
         onClick={async () => {
           const shareText = `🎯 Fact-Check Results: ${result.verdict}
@@ -709,8 +647,6 @@ ${result.claims.slice(0, 3).map((c, i) => `${i+1}. ${c.status}: ${c.claim}`).joi
 
 Fact-checked with Signal vs Noise AI
 `;
-
-         // Try native share first (mobile), fallback to clipboard (desktop)
           if (navigator.share) {
             try {
               await navigator.share({
@@ -722,10 +658,8 @@ Fact-checked with Signal vs Noise AI
               if (err.name !== 'AbortError') console.log('Share failed:', err);
             }
           } else {
-            // Desktop fallback: copy formatted text to clipboard
             try {
               await navigator.clipboard.writeText(shareText);
-              // Show success feedback
               const btn = event.currentTarget;
               const originalText = btn.innerHTML;
               btn.innerHTML = '<span style="font-size:11px">✓</span> COPIED TO CLIPBOARD';
@@ -766,14 +700,10 @@ Fact-checked with Signal vs Noise AI
         SHARE RESULTS
       </button>
 
-      {/* Tweet This Button */}
       <button
         onClick={() => {
-          // Get the claim text
           const claimText = textInput || urlInput || "Claim analyzed";
           const claimPreview = claimText.length > 100 ? claimText.substring(0, 100) + "..." : claimText;
-          
-          // Generate comprehensive tweet (under 280 chars with room for link)
           const tweetText = `CLAIM: "${claimPreview}"
 
 VERDICT: ${result.verdict}
@@ -783,8 +713,6 @@ Full analysis with sources:
 👉 Export the HTML report for complete breakdown
 
 #FactCheck #SignalVsNoise`;
-          
-          // Open Twitter intent
           const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
           window.open(tweetUrl, '_blank', 'width=550,height=420');
         }}
@@ -817,7 +745,6 @@ Full analysis with sources:
     </div>
   );
 }
-
 export default function FactChecker() {
   const [urlInput, setUrlInput] = useState("");
   const [textInput, setTextInput] = useState("");
@@ -851,16 +778,13 @@ export default function FactChecker() {
   const textareaRef = useRef(null);
   const abortRef = useRef(null);
 
-  // ── Shared agentic fetch loop ─────────────────────────────────────────────
   const runAgenticLoop = async (systemPrompt, userMessage, model, controller, statusPrefix) => {
-    // userMessage can be a string OR an array of content blocks (for images)
     const messages = [{ role: "user", content: userMessage }];
     const tools = [{ 
       type: "web_search_20250305", 
       name: "web_search",
       max_uses: 5
-    }
-}];
+    }];
     let finalText = "";
     const MAX_TURNS = 5;
 
@@ -905,10 +829,8 @@ export default function FactChecker() {
     return finalText;
   };
 
-  // ── JSON parse helper ─────────────────────────────────────────────────────
   const parseJSON = (text) => {
     try {
-      // Strip everything before the first {
       const firstBrace = text.indexOf('{');
       if (firstBrace === -1) throw new Error('No JSON found in response');
       
@@ -976,7 +898,6 @@ export default function FactChecker() {
   };
 
   const handleCheck = async () => {
-    // At least one input required
     if (!urlInput.trim() && !textInput.trim() && !uploadedImage) return;
     
     setLoading(true);
@@ -986,12 +907,10 @@ export default function FactChecker() {
     setModelInfo(null);
 
     try {
-      // ── Build comprehensive user message from all available inputs ─────────
       let userMessage;
       let messageContent = [];
       let contextParts = [];
 
-      // 1. Process URL if provided
       if (urlInput.trim() && isUrl(urlInput.trim())) {
         const domain = urlInput.includes("instagram.com") ? "Instagram" :
                       urlInput.includes("twitter.com") || urlInput.includes("x.com") ? "Twitter/X" :
@@ -1000,14 +919,11 @@ export default function FactChecker() {
         contextParts.push(`URL: ${urlInput.trim()} (${domain} post)`);
       }
 
-      // 2. Add text claim if provided
       if (textInput.trim()) {
         contextParts.push(`Text claim: "${textInput.trim()}"`);
       }
 
-      // 3. Build final message based on what we have
       if (uploadedImage) {
-        // Image + optional text + optional URL
         messageContent.push({ type: "image", source: { type: "base64", media_type: uploadedImage.type, data: uploadedImage.data } });
         
         let imagePrompt = "Analyze this image for misinformation, fake data, manipulated content, or misleading visual claims.";
@@ -1017,7 +933,6 @@ export default function FactChecker() {
         messageContent.push({ type: "text", text: imagePrompt });
         userMessage = messageContent;
       } else {
-        // Text and/or URL only (no image)
         let prompt = "Please fact-check the following:\n\n";
         if (contextParts.length > 0) {
           prompt += contextParts.join("\n\n");
@@ -1028,15 +943,11 @@ export default function FactChecker() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      // ── STEP 1: Haiku triage ───────────────────────────────────────────────
-      // Quick Check mode: skip triage, go straight to fast analysis
       if (quickCheckMode) {
         setLoadingStatus("QUICK CHECK...");
         setLoadingSubtext("Running fast fact-check");
         
-        const quickMessage = uploadedImage
-          ? messageContent
-          : userMessage;
+        const quickMessage = uploadedImage ? messageContent : userMessage;
         
         const quickResult = await runAgenticLoop(
           QUICK_CHECK_PROMPT,
@@ -1045,8 +956,6 @@ export default function FactChecker() {
           controller,
           "CHECKING"
         );
-
-        console.log('QUICK RESULT:', quickResult);
 
         const parsed = parseJSON(quickResult);
         parsed._modelInfo = { model: "haiku", escalated: false };
@@ -1093,7 +1002,6 @@ export default function FactChecker() {
       const finalModel = shouldEscalate ? "claude-sonnet-4-5-20250929" : "claude-haiku-4-5-20251001";
       const finalModelLabel = shouldEscalate ? "Sonnet" : "Haiku";
 
-      // ── STEP 2: Full analysis with chosen model ────────────────────────────
       if (shouldEscalate) {
         setLoadingStatus("ESCALATING TO SONNET...");
         setLoadingSubtext("Complex claim detected — using deeper analysis model");
@@ -1117,7 +1025,6 @@ export default function FactChecker() {
       try { parsed = parseJSON(analysisText); }
       catch(e) { throw new Error(`Response parsing failed: ${e.message}. Please try again.`); }
 
-      // Attach model metadata to result
       parsed._modelInfo = {
         model: finalModelLabel,
         escalated: shouldEscalate,
@@ -1135,7 +1042,6 @@ export default function FactChecker() {
         time: new Date() 
       }, ...prev.slice(0, 4)]);
 
-      // First check celebration
       if (isFirstVisit) {
         setIsFirstVisit(false);
         setTimeout(() => {
@@ -1173,7 +1079,6 @@ export default function FactChecker() {
     setTextInput(item.textInput || "");
     setResult(item.result);
     setError(null);
-    // Note: can't restore uploaded image from history
   };
 
   return (
@@ -1204,7 +1109,6 @@ export default function FactChecker() {
           -webkit-font-smoothing: antialiased;
         }
 
-        /* ── Animations ── */
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(20px); }
           to   { opacity: 1; transform: translateY(0); }
@@ -1244,7 +1148,6 @@ export default function FactChecker() {
           to   { opacity: 1; transform: translateX(0); }
         }
 
-        /* ── Field Labels ── */
         .field-label {
           display: flex;
           align-items: center;
@@ -1263,7 +1166,6 @@ export default function FactChecker() {
           font-size: 10px;
         }
 
-        /* ── Input fields ── */
         .input-area {
           background: rgba(255,255,255,0.03);
           border: 1px solid var(--border);
@@ -1285,7 +1187,6 @@ export default function FactChecker() {
         }
         .input-area::placeholder { color: #4a4a5a; }
 
-        /* ── Main CTA button ── */
         .check-btn {
           background: linear-gradient(135deg, #C62828 0%, #E53935 50%, #FF1744 100%);
           border: none;
@@ -1325,7 +1226,6 @@ export default function FactChecker() {
         }
         .check-btn:disabled::before { display: none; }
 
-        /* ── Result cards ── */
         .result-card {
           border-radius: 14px;
           padding: 18px 20px;
@@ -1342,7 +1242,6 @@ export default function FactChecker() {
           pointer-events: none;
         }
 
-        /* ── Section labels ── */
         .section-label {
           font-family: var(--mono);
           font-size: 9px;
@@ -1361,7 +1260,6 @@ export default function FactChecker() {
           opacity: 0.15;
         }
 
-        /* ── Claim cards ── */
         .claim-card {
           background: rgba(255,255,255,0.025);
           border: 1px solid rgba(255,255,255,0.06);
@@ -1374,7 +1272,6 @@ export default function FactChecker() {
         }
         .claim-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
 
-        /* ── History items ── */
         .history-item {
           background: var(--surface);
           border: 1px solid var(--border);
@@ -1390,40 +1287,33 @@ export default function FactChecker() {
           transform: translateX(3px);
         }
 
-        /* ── Scrollbar ── */
         ::-webkit-scrollbar { width: 3px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
       `}</style>
-      
-      <div style={{
+<div style={{
         minHeight: "100vh",
         background: "#080810",
         color: "var(--text)",
         position: "relative",
         overflow: "hidden"
       }}>
-        {/* Layered atmospheric background */}
         <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }}>
-          {/* Deep grid */}
           <div style={{
             position: "absolute", inset: 0,
             backgroundImage: "linear-gradient(rgba(229,57,53,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(229,57,53,0.04) 1px, transparent 1px)",
             backgroundSize: "60px 60px"
           }} />
-          {/* Red radial glow top-center */}
           <div style={{
             position: "absolute", top: -200, left: "50%", transform: "translateX(-50%)",
             width: 800, height: 600,
             background: "radial-gradient(ellipse, rgba(229,57,53,0.07) 0%, transparent 70%)",
           }} />
-          {/* Subtle bottom glow */}
           <div style={{
             position: "absolute", bottom: -100, right: "20%",
             width: 400, height: 400,
             background: "radial-gradient(ellipse, rgba(229,57,53,0.04) 0%, transparent 70%)",
           }} />
-          {/* Noise texture overlay */}
           <div style={{
             position: "absolute", inset: 0,
             backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E\")",
@@ -1434,9 +1324,7 @@ export default function FactChecker() {
         
         <div style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", padding: "40px 20px 80px" }}>
           
-          {/* Header */}
           <div style={{ textAlign: "center", marginBottom: 44, animation: "fadeUp 0.6s ease both" }}>
-            {/* Live badge */}
             <div style={{ 
               display: "inline-flex", alignItems: "center", gap: 8,
               background: "rgba(229,57,53,0.08)", 
@@ -1454,7 +1342,6 @@ export default function FactChecker() {
               </span>
             </div>
 
-            {/* Logo */}
             <h1 style={{
               fontFamily: "var(--display)",
               fontSize: "clamp(56px, 12vw, 96px)",
@@ -1500,9 +1387,7 @@ export default function FactChecker() {
               Paste a URL, a claim, or upload a screenshot — get the truth.
             </p>
           </div>
-
-          {/* Input Card */}
-          <div style={{
+<div style={{
             background: "linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)",
             border: "1px solid rgba(255,255,255,0.09)",
             borderRadius: 18,
@@ -1512,7 +1397,6 @@ export default function FactChecker() {
             boxShadow: "0 24px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
             animation: "fadeUp 0.6s 0.1s ease both"
           }}>
-            {/* Card header */}
             <div style={{ 
               display: "flex", alignItems: "center", justifyContent: "space-between",
               marginBottom: 20, paddingBottom: 14,
@@ -1526,7 +1410,6 @@ export default function FactChecker() {
               </span>
             </div>
 
-            {/* URL field */}
             <div style={{ marginBottom: 14 }}>
               <div className="field-label">
                 <span className="field-label-icon" style={{ background: "rgba(100,181,246,0.12)", color: "#64B5F6" }}>↗</span>
@@ -1543,7 +1426,6 @@ export default function FactChecker() {
               />
             </div>
 
-            {/* Text field */}
             <div style={{ marginBottom: 14 }}>
               <div className="field-label">
                 <span className="field-label-icon" style={{ background: "rgba(255,179,0,0.12)", color: "#FFB300" }}>⌨</span>
@@ -1561,7 +1443,6 @@ export default function FactChecker() {
               />
             </div>
 
-            {/* Image upload area */}
             <div style={{ marginBottom: 4 }}>
               <div className="field-label">
                 <span className="field-label-icon" style={{ background: "rgba(0,200,81,0.12)", color: "#00C851" }}>🖼</span>
@@ -1687,8 +1568,7 @@ export default function FactChecker() {
               onChange={handleImageUpload} 
               style={{ display: "none" }} 
             />
-            
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ fontSize: 11, color: "#666", fontFamily: "var(--mono)" }}>
                   ⌘ + ENTER to check
@@ -1729,7 +1609,6 @@ export default function FactChecker() {
               )}
             </div>
             
-            {/* Promo Code Input */}
             <div style={{ marginTop: 12 }}>
               <input
                 type="text"
@@ -1795,6 +1674,7 @@ export default function FactChecker() {
                     flexShrink: 0
                   }}
                   onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,23,68,0.22)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,23,68,0.12)"; }}
                 >
                   ✕ CANCEL
                 </button>
@@ -1829,7 +1709,6 @@ export default function FactChecker() {
             )}
           </div>
 
-          {/* Error */}
           {error && (
             <div style={{
               background: "rgba(255,23,68,0.08)",
@@ -1882,9 +1761,7 @@ export default function FactChecker() {
               </div>
             </div>
           )}
-
-          {/* First check celebration */}
-          {showCelebration && (
+{showCelebration && (
             <div style={{
               position: "fixed", top: "50%", left: "50%",
               transform: "translate(-50%, -50%)", zIndex: 9999,
@@ -1921,7 +1798,6 @@ export default function FactChecker() {
             </div>
           )}
 
-          {/* Results */}
           {result && (
             <div style={{ marginBottom: 32 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -1949,7 +1825,6 @@ export default function FactChecker() {
             </div>
           )}
 
-          {/* History */}
           {history.length > 0 && !loading && (
             <div>
               <div className="section-label" style={{ color: "#333", marginBottom: 10 }}>
@@ -1982,7 +1857,6 @@ export default function FactChecker() {
             </div>
           )}
           
-          {/* Footer note */}
           {!result && !loading && (
             <div style={{ textAlign: "center", marginTop: 48, paddingTop: 24, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
               <div style={{ 
