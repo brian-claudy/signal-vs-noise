@@ -603,7 +603,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
             SOURCES & CITATIONS
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {result.citations.map((cite, i) => (
+{result.citations.map((cite, i) => (
               
                 key={i}
                 href={cite.url}
@@ -655,9 +655,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
                 )}
               </a>
             ))}
-          </div>
-        </div>
-      )}
       {/* Export Button */}
       <button
         onClick={handleExport}
