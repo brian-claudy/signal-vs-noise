@@ -1,4 +1,5 @@
 'use client';
+import { Analytics } from '@vercel/analytics/react';
 import { Bebas_Neue, DM_Sans, JetBrains_Mono } from 'next/font/google';
 
 const bebasNeue = Bebas_Neue({ 
@@ -1943,6 +1944,7 @@ const parsed = parseJSON(quickResult);
           )}
         </div>
       </div>
+      <Analytics />
     </>
   );
 }
