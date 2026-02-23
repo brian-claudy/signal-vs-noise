@@ -906,10 +906,15 @@ useEffect(() => {
   // ── JSON parse helper ─────────────────────────────────────────────────────
  const parseJSON = (text) => {
   try {
-    let clean = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-    const first = clean.indexOf("{"), last = clean.lastIndexOf("}");
-    if (first !== -1 && last !== -1) clean = clean.slice(first, last + 1);
-    clean = clean.replace(/,\s*([}\]])/g, "$1").replace(/[-]/g, " ");
+    // Strip everything before the first {
+    const firstBrace = text.indexOf('{');
+    if (firstBrace === -1) throw new Error('No JSON found in response');
+    
+    let clean = text.slice(firstBrace);
+    const lastBrace = clean.lastIndexOf('}');
+    if (lastBrace === -1) throw new Error('No closing brace found');
+    
+    clean = clean.slice(0, lastBrace + 1);
     return JSON.parse(clean);
   } catch (e) {
     console.error('JSON PARSE ERROR:', e, 'TEXT:', text);
