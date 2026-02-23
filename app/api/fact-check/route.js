@@ -23,31 +23,33 @@ export async function POST(request) {
 
     // Get user fingerprint from request headers (will come from FingerprintJS)
     const fingerprint = request.headers.get('x-fingerprint-id');
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    console.log('RATE LIMIT CHECK - fingerprint:', fingerprint, 'ip:', ip); // ADD THIS
+const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+           request.headers.get('x-real-ip') || 
+           'unknown';
+
+console.log('RATE LIMIT CHECK - fingerprint:', fingerprint, 'ip:', ip);
 
 if (!fingerprint) {
   return NextResponse.json({ error: { message: 'Missing fingerprint ID' } }, { status: 400 });
 }
-    
-    if (!fingerprint) {
-      return NextResponse.json({ error: { message: 'Missing fingerprint ID' } }, { status: 400 });
-    }
 
-    // Create composite key for rate limiting
-    const userId = fingerprint; // Use just fingerprint as user ID
-    const usageKey = `usage:${userId}`;
-    const costKey = `cost:today:${new Date().toISOString().split('T')[0]}`;
+const userId = fingerprint;
+const usageKey = `usage:${userId}`;
+const ipUsageKey = `usage:ip:${ip}`;
 
-    // Check if user is Pro subscriber
- const isPro = await redis.get(`user:${userId}:pro`);
+// Check if user is Pro subscriber
+const isPro = await redis.get(`user:${userId}:pro`);
 console.log('USER:', userId, 'isPro:', isPro);
 
 // Only apply rate limiting for free tier users
 if (!isPro) {
   const usage = await redis.get(usageKey) || 0;
-  console.log('USAGE CHECK:', usageKey, '=', usage, '/ limit:', RATE_LIMIT.FREE_TIER_CHECKS);
+  const ipUsage = await redis.get(ipUsageKey) || 0;
   
+  console.log('USAGE CHECK:', usageKey, '=', usage, '/ limit:', RATE_LIMIT.FREE_TIER_CHECKS);
+  console.log('IP USAGE CHECK:', ipUsageKey, '=', ipUsage, '/ IP limit: 5');
+  
+  // Check fingerprint limit (2/day)
   if (usage >= RATE_LIMIT.FREE_TIER_CHECKS) {
     return NextResponse.json({ 
       error: { 
@@ -57,8 +59,18 @@ if (!isPro) {
       } 
     }, { status: 429 });
   }
+  
+  // Check IP limit (5/day - catches incognito abuse)
+  if (ipUsage >= 5) {
+    return NextResponse.json({ 
+      error: { 
+        message: 'Daily limit reached from this network. Upgrade to Pro for unlimited access!',
+        code: 'rate_limit_exceeded',
+        upgradeUrl: '/upgrade'
+      } 
+    }, { status: 429 });
+  }
 }
-
     // Check daily cost budget (circuit breaker)
     const costToday = await redis.get(costKey) || 0;
     if (costToday > RATE_LIMIT.DAILY_BUDGET) {
