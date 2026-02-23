@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 
+// CORS configuration - only allow requests from your domain
+const ALLOWED_ORIGINS = [
+  'https://signalnoise.tech',
+  'https://www.signalnoise.tech',
+  'https://signal-vs-noise-f8ju.vercel.app', // Keep Vercel preview URLs working
+];
+
+// Helper to check origin
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // Allow same-origin requests
+  return ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed));
+}
 // Initialize Redis with environment variables from Upstash
 const redis = new Redis({
   url: process.env.KV_REST_API_URL,
@@ -17,6 +29,15 @@ const RATE_LIMIT = {
 
 export async function POST(request) {
   try {
+
+    // Check origin
+    const origin = request.headers.get('origin');
+    if (!isAllowedOrigin(origin)) {
+      return NextResponse.json({ 
+        error: { message: 'Unauthorized origin' } 
+      }, { status: 403 });
+    }
+
     const body = await request.json();
     const { model, max_tokens, system, tools, messages } = body;
     
