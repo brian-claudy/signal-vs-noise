@@ -1795,7 +1795,6 @@ export default function FactChecker() {
                     flexShrink: 0
                   }}
                   onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,23,68,0.22)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,23,68,0.12)"; }}
                 >
                   ✕ CANCEL
                 </button>
