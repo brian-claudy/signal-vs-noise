@@ -34,10 +34,6 @@ export async function POST(request) {
         error: { message: 'Request too large. Please use shorter text or smaller images.' } 
       }, { status: 413 });
     }
-    // Get request body
-    const body = await request.json();
-    const { model, max_tokens, system, tools, messages } = body;
-
     // Get user fingerprint from request headers (will come from FingerprintJS)
     const fingerprint = request.headers.get('x-fingerprint-id');
 const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
