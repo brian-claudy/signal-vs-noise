@@ -100,11 +100,13 @@ if (!isPro) {
 
     const data = await response.json();
 
-    // Update usage counter (only for free tier users)
-    if (!isPro) {
-      const usage = await redis.get(usageKey) || 0;
-      await redis.set(usageKey, usage + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
-    }
+   // Update usage counters (only for free tier users)
+if (!isPro) {
+  const usage = await redis.get(usageKey) || 0;
+  const ipUsage = await redis.get(ipUsageKey) || 0;
+  await redis.set(usageKey, usage + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
+  await redis.set(ipUsageKey, ipUsage + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
+}
 
     // Update daily cost tracking
     await redis.set(costKey, costToday + RATE_LIMIT.COST_PER_CHECK, { ex: 86400 }); // Expire at end of day
