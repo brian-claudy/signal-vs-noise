@@ -1649,37 +1649,7 @@ const parsed = parseJSON(quickResult);
   DRAG & DROP OR CLICK TO UPLOAD
   <span style={{ fontSize: 8, letterSpacing: 1, opacity: 0.5 }}>PNG · JPG · WEBP · SCREENSHOTS</span>
 </div>
-                    width: "100%",
-                    padding: "18px 14px",
-                    background: "rgba(255,255,255,0.02)",
-                    border: "1.5px dashed rgba(255,255,255,0.1)",
-                    borderRadius: 10,
-                    color: "#3a3a4a",
-                    cursor: "pointer",
-                    fontFamily: "var(--mono)",
-                    fontSize: 10,
-                    letterSpacing: 2,
-                    transition: "all 0.2s",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 6
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
-                    e.currentTarget.style.color = "#888";
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = "rgba(255,255,255,0.02)";
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-                    e.currentTarget.style.color = "#3a3a4a";
-                  }}
-                >
-                  <span style={{ fontSize: 22, opacity: 0.4 }}>⊕</span>
-                  DRAG & DROP OR CLICK TO UPLOAD
-                  <span style={{ fontSize: 8, letterSpacing: 1, opacity: 0.5 }}>PNG · JPG · WEBP · SCREENSHOTS</span>
-                </button>
+
               )}
             </div>
             <input 
