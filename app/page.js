@@ -343,7 +343,7 @@ function generateReport(result, urlInput, textInput, hasImage) {
       <p style="font-size:13px;color:#444;line-height:1.6;">${result.bottomLine || ""}</p>
     </div>
 
-${urlInput || textInput || hasImage ? `
+    ${urlInput || textInput || hasImage ? `
     <!-- Input Provided -->
     <div style="background:#fafafa;border:1px solid #e8e8e8;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-size:10px;color:#888;font-weight:700;letter-spacing:2px;margin-bottom:6px;">INPUT PROVIDED</div>
@@ -604,7 +604,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {result.citations.map((cite, i) => (
-              <a
+              
                 key={i}
                 href={cite.url}
                 target="_blank"
@@ -835,19 +835,22 @@ export default function FactChecker() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [quickCheckMode, setQuickCheckMode] = useState(false);
   const [history, setHistory] = useState([]);
-const [visitorId, setVisitorId] = useState(null);
+  const [visitorId, setVisitorId] = useState(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoSuccess, setPromoSuccess] = useState("");
 
-useEffect(() => {
-  const script = document.createElement('script');
-  script.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js';
-  script.async = true;
-  script.onload = () => {
-    window.FingerprintJS.load().then(fp => fp.get()).then(result => {
-      setVisitorId(result.visitorId);
-    });
-  };
-  document.head.appendChild(script);
-}, []);
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js';
+    script.async = true;
+    script.onload = () => {
+      window.FingerprintJS.load().then(fp => fp.get()).then(result => {
+        setVisitorId(result.visitorId);
+      });
+    };
+    document.head.appendChild(script);
+  }, []);
+
   const textareaRef = useRef(null);
   const abortRef = useRef(null);
 
@@ -859,7 +862,8 @@ useEffect(() => {
       type: "web_search_20250305", 
       name: "web_search",
       max_uses: 5
-    }];
+    }
+}];
     let finalText = "";
     const MAX_TURNS = 5;
 
@@ -868,11 +872,11 @@ useEffect(() => {
       let response;
       try {
         response = await fetch("/api/fact-check", {
-  method: "POST",
-  headers: { 
-    "Content-Type": "application/json",
-    "x-fingerprint-id": visitorId || "anonymous"
-  },
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "x-fingerprint-id": visitorId || "anonymous"
+          },
           signal: controller.signal,
           body: JSON.stringify({ model, max_tokens: 2048, system: systemPrompt, tools, messages })
         });
@@ -905,23 +909,23 @@ useEffect(() => {
   };
 
   // ── JSON parse helper ─────────────────────────────────────────────────────
- const parseJSON = (text) => {
-  try {
-    // Strip everything before the first {
-    const firstBrace = text.indexOf('{');
-    if (firstBrace === -1) throw new Error('No JSON found in response');
-    
-    let clean = text.slice(firstBrace);
-    const lastBrace = clean.lastIndexOf('}');
-    if (lastBrace === -1) throw new Error('No closing brace found');
-    
-    clean = clean.slice(0, lastBrace + 1);
-    return JSON.parse(clean);
-  } catch (e) {
-    console.error('JSON PARSE ERROR:', e, 'TEXT:', text);
-    throw new Error('Failed to parse fact-check result');
-  }
-};
+  const parseJSON = (text) => {
+    try {
+      // Strip everything before the first {
+      const firstBrace = text.indexOf('{');
+      if (firstBrace === -1) throw new Error('No JSON found in response');
+      
+      let clean = text.slice(firstBrace);
+      const lastBrace = clean.lastIndexOf('}');
+      if (lastBrace === -1) throw new Error('No closing brace found');
+      
+      clean = clean.slice(0, lastBrace + 1);
+      return JSON.parse(clean);
+    } catch (e) {
+      console.error('JSON PARSE ERROR:', e, 'TEXT:', text);
+      throw new Error('Failed to parse fact-check result');
+    }
+  };
 
   const isUrl = (str) => {
     return str.includes("instagram.com") || str.includes("twitter.com") || 
@@ -946,6 +950,32 @@ useEffect(() => {
 
   const clearImage = () => {
     setUploadedImage(null);
+  };
+
+  const handlePromoCode = async () => {
+    if (!promoCode || !visitorId) return;
+    
+    try {
+      const response = await fetch('/api/promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: promoCode, visitorId })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setPromoSuccess(data.message);
+        setPromoCode("");
+        setTimeout(() => setPromoSuccess(""), 5000);
+      } else {
+        setError(data.error || "Invalid promo code");
+        setTimeout(() => setError(null), 3000);
+      }
+    } catch (err) {
+      setError("Failed to apply promo code");
+      setTimeout(() => setError(null), 3000);
+    }
   };
 
   const handleCheck = async () => {
@@ -1011,17 +1041,17 @@ useEffect(() => {
           ? messageContent
           : userMessage;
         
-       const quickResult = await runAgenticLoop(
-  QUICK_CHECK_PROMPT,
-  quickMessage,
-  "claude-haiku-4-5-20251001",
-  controller,
-  "CHECKING"
-);
+        const quickResult = await runAgenticLoop(
+          QUICK_CHECK_PROMPT,
+          quickMessage,
+          "claude-haiku-4-5-20251001",
+          controller,
+          "CHECKING"
+        );
 
-console.log('QUICK RESULT:', quickResult); // ADD THIS LINE
+        console.log('QUICK RESULT:', quickResult);
 
-const parsed = parseJSON(quickResult);
+        const parsed = parseJSON(quickResult);
         parsed._modelInfo = { model: "haiku", escalated: false };
         setModelInfo(parsed._modelInfo);
         setResult(parsed);
@@ -1046,8 +1076,9 @@ const parsed = parseJSON(quickResult);
       setLoadingStatus("HAIKU SCANNING...");
       setLoadingSubtext("Reading claim and gathering context");
       const triageMessage = uploadedImage 
-  ? `Quick triage scan — the user uploaded an image${textInput.trim() ? " with context: " + textInput.trim() : ""}. Determine if this needs escalation.`
-  : `Quick triage scan of this claim: ${typeof userMessage === 'string' ? userMessage : 'see content'}`;
+        ? `Quick triage scan — the user uploaded an image${textInput.trim() ? " with context: " + textInput.trim() : ""}. Determine if this needs escalation.`
+        : `Quick triage scan of this claim: ${typeof userMessage === 'string' ? userMessage : 'see content'}`;
+
       const triageText = await runAgenticLoop(
         HAIKU_TRIAGE_PROMPT,
         triageMessage,
@@ -1116,10 +1147,10 @@ const parsed = parseJSON(quickResult);
         }, 400);
       }
 
-   } catch (err) {
-  console.log('FACT-CHECK ERROR:', err.message);
-  setError(err.message || "Something went wrong. Please try again.");
-} finally {
+    } catch (err) {
+      console.log('FACT-CHECK ERROR:', err.message);
+      setError(err.message || "Something went wrong. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
@@ -1590,67 +1621,66 @@ const parsed = parseJSON(quickResult);
                 </div>
               ) : (
                 <div
-  onDragOver={(e) => {
-    e.preventDefault();
-    e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-    e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
-  }}
-  onDragLeave={(e) => {
-    e.currentTarget.style.background = "rgba(255,255,255,0.02)";
-    e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-  }}
-  onDrop={(e) => {
-    e.preventDefault();
-    e.currentTarget.style.background = "rgba(255,255,255,0.02)";
-    e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-    
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Please upload an image file (PNG, JPG, etc.)");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const base64 = evt.target.result.split(",")[1];
-      setUploadedImage({ data: base64, type: file.type, name: file.name });
-    };
-    reader.readAsDataURL(file);
-  }}
-  onClick={() => document.getElementById("imageUploadInput")?.click()}
-  style={{
-    width: "100%",
-    padding: "18px 14px",
-    background: "rgba(255,255,255,0.02)",
-    border: "1.5px dashed rgba(255,255,255,0.1)",
-    borderRadius: 10,
-    color: "#3a3a4a",
-    cursor: "pointer",
-    fontFamily: "var(--mono)",
-    fontSize: 10,
-    letterSpacing: 2,
-    transition: "all 0.2s",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 6
-  }}
-  onMouseEnter={e => {
-    e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-    e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
-    e.currentTarget.style.color = "#888";
-  }}
-  onMouseLeave={e => {
-    e.currentTarget.style.background = "rgba(255,255,255,0.02)";
-    e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-    e.currentTarget.style.color = "#3a3a4a";
-  }}
->
-  <span style={{ fontSize: 22, opacity: 0.4 }}>⊕</span>
-  DRAG & DROP OR CLICK TO UPLOAD
-  <span style={{ fontSize: 8, letterSpacing: 1, opacity: 0.5 }}>PNG · JPG · WEBP · SCREENSHOTS</span>
-</div>
-
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                    
+                    const file = e.dataTransfer.files?.[0];
+                    if (!file) return;
+                    if (!file.type.startsWith("image/")) {
+                      setError("Please upload an image file (PNG, JPG, etc.)");
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                      const base64 = evt.target.result.split(",")[1];
+                      setUploadedImage({ data: base64, type: file.type, name: file.name });
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                  onClick={() => document.getElementById("imageUploadInput")?.click()}
+                  style={{
+                    width: "100%",
+                    padding: "18px 14px",
+                    background: "rgba(255,255,255,0.02)",
+                    border: "1.5px dashed rgba(255,255,255,0.1)",
+                    borderRadius: 10,
+                    color: "#3a3a4a",
+                    cursor: "pointer",
+                    fontFamily: "var(--mono)",
+                    fontSize: 10,
+                    letterSpacing: 2,
+                    transition: "all 0.2s",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 6
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
+                    e.currentTarget.style.color = "#888";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                    e.currentTarget.style.color = "#3a3a4a";
+                  }}
+                >
+                  <span style={{ fontSize: 22, opacity: 0.4 }}>⊕</span>
+                  DRAG & DROP OR CLICK TO UPLOAD
+                  <span style={{ fontSize: 8, letterSpacing: 1, opacity: 0.5 }}>PNG · JPG · WEBP · SCREENSHOTS</span>
+                </div>
               )}
             </div>
             <input 
@@ -1699,6 +1729,37 @@ const parsed = parseJSON(quickResult);
                 >
                   CLEAR ALL ✕
                 </button>
+              )}
+            </div>
+            
+            {/* Promo Code Input */}
+            <div style={{ marginTop: 12 }}>
+              <input
+                type="text"
+                placeholder="Have a promo code? Enter it here..."
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && promoCode) {
+                    handlePromoCode();
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  background: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: 6,
+                  color: "#E0E0E0",
+                  fontSize: 11,
+                  fontFamily: "var(--mono)",
+                  outline: "none"
+                }}
+              />
+              {promoSuccess && (
+                <div style={{ marginTop: 6, fontSize: 10, color: "#00C851", fontFamily: "var(--mono)" }}>
+                  ✓ {promoSuccess}
+                </div>
               )}
             </div>
             
@@ -1783,46 +1844,46 @@ const parsed = parseJSON(quickResult);
               fontSize: 16,
               color: "#EF9A9A"
             }}>
-           <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-  <span style={{ fontSize: 20 }}>⚠</span>
-  <div style={{ flex: 1 }}>
-    <div style={{ marginBottom: 8 }}>{error}</div>
-    
-    {error.includes('Free tier limit') && (
-      <button
-        onClick={async () => {
-          try {
-            const response = await fetch('/api/checkout', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                priceId: 'price_1T33WFRTl9hYt1sI62cCvbRp',
-                userId: visitorId
-              })
-            });
-            const { url } = await response.json();
-            window.location.href = url;
-          } catch (err) {
-            alert('Failed to start checkout. Please try again.');
-          }
-        }}
-        style={{
-          padding: '12px 24px',
-          background: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A6F 100%)',
-          border: 'none',
-          borderRadius: 8,
-          color: '#FFFFFF',
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(229,57,53,0.3)'
-        }}
-      >
-        ⚡ Upgrade to Pro - $7/month
-      </button>
-    )}
-  </div>
-</div>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <span style={{ fontSize: 20 }}>⚠</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ marginBottom: 8 }}>{error}</div>
+                  
+                  {error.includes('Free tier limit') && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/checkout', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              priceId: 'price_1T45UJRQdqd4bJUlx4z2g256',
+                              userId: visitorId
+                            })
+                          });
+                          const { url } = await response.json();
+                          window.location.href = url;
+                        } catch (err) {
+                          alert('Failed to start checkout. Please try again.');
+                        }
+                      }}
+                      style={{
+                        padding: '12px 24px',
+                        background: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A6F 100%)',
+                        border: 'none',
+                        borderRadius: 8,
+                        color: '#FFFFFF',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(229,57,53,0.3)'
+                      }}
+                    >
+                      ⚡ Upgrade to Pro - $7/month
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1872,7 +1933,7 @@ const parsed = parseJSON(quickResult);
                   ANALYSIS RESULT
                 </div>
                 <button
-                  onClick={() => { setTextInput(""); setUrlInput("");; setResult(null); setError(null); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                  onClick={() => { setUrlInput(""); setTextInput(""); clearImage(); setResult(null); setError(null); setTimeout(() => textareaRef.current?.focus(), 50); }}
                   style={{
                     background: "rgba(255,255,255,0.05)",
                     border: "1px solid rgba(255,255,255,0.12)",
