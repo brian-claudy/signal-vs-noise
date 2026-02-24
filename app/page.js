@@ -540,7 +540,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {result.citations.map((cite, i) => (
-              
+              <a
                 key={i}
                 href={cite.url}
                 target="_blank"
