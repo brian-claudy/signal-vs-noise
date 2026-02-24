@@ -829,22 +829,51 @@ export default function FactChecker() {
     return finalText;
   };
 
-  const parseJSON = (text) => {
+const parseJSON = (text) => {
+  try {
+    // Try parsing directly first
     try {
-      const firstBrace = text.indexOf('{');
-      if (firstBrace === -1) throw new Error('No JSON found in response');
-      
-      let clean = text.slice(firstBrace);
-      const lastBrace = clean.lastIndexOf('}');
-      if (lastBrace === -1) throw new Error('No closing brace found');
-      
-      clean = clean.slice(0, lastBrace + 1);
-      return JSON.parse(clean);
+      return JSON.parse(text);
     } catch (e) {
-      console.error('JSON PARSE ERROR:', e, 'TEXT:', text);
-      throw new Error('Failed to parse fact-check result');
+      // Direct parse failed, extract JSON
     }
-  };
+    
+    // Remove markdown code fences
+    let clean = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+    
+    // Find first { and last }
+    const firstBrace = clean.indexOf('{');
+    if (firstBrace === -1) throw new Error('No JSON found in response');
+    
+    clean = clean.slice(firstBrace);
+    const lastBrace = clean.lastIndexOf('}');
+    if (lastBrace === -1) throw new Error('No closing brace found');
+    
+    clean = clean.slice(0, lastBrace + 1);
+    
+    // Remove any remaining prose after the JSON
+    const lines = clean.split('\n');
+    let jsonLines = [];
+    let inJson = false;
+    let braceCount = 0;
+    
+    for (const line of lines) {
+      for (const char of line) {
+        if (char === '{') braceCount++;
+        if (char === '}') braceCount--;
+      }
+      
+      if (line.includes('{')) inJson = true;
+      if (inJson) jsonLines.push(line);
+      if (braceCount === 0 && inJson) break;
+    }
+    
+    return JSON.parse(jsonLines.join('\n'));
+  } catch (e) {
+    console.error('JSON PARSE ERROR:', e, 'TEXT:', text.substring(0, 500));
+    throw new Error('Failed to parse fact-check result');
+  }
+};
 
   const isUrl = (str) => {
     return str.includes("instagram.com") || str.includes("twitter.com") || 
