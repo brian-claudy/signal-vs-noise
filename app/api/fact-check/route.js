@@ -123,7 +123,6 @@ if (!isPro) {
       }, { status: 429 });
     }
   }
-
     // Check daily cost budget (circuit breaker)
     const costToday = parseFloat(await redis.get(costKey) || '0');
     if (costToday > RATE_LIMIT.DAILY_BUDGET) {
