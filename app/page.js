@@ -871,31 +871,32 @@ export default function FactChecker() {
     setUploadedImage(null);
   };
 
-  const handlePromoCode = async () => {
-    if (!promoCode || !visitorId) return;
+const handlePromoCode = async () => {
+  if (!promoCode || !visitorId) return;
+  
+  try {
+    const response = await fetch('/api/promo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: promoCode, visitorId })
+    });
     
-    try {
-      const response = await fetch('/api/promo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: promoCode, visitorId })
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        setPromoSuccess(data.message);
-        setPromoCode("");
-        setTimeout(() => setPromoSuccess(""), 5000);
-      } else {
-        setError(data.error || "Invalid promo code");
-        setTimeout(() => setError(null), 3000);
-      }
-    } catch (err) {
-      setError("Failed to apply promo code");
+    const data = await response.json();
+    
+    if (response.ok) {
+      setPromoSuccess(data.message);
+      setPromoCode("");
+      setError(null); // CLEAR THE ERROR!
+      setTimeout(() => setPromoSuccess(""), 5000);
+    } else {
+      setError(data.error || "Invalid promo code");
       setTimeout(() => setError(null), 3000);
     }
-  };
+  } catch (err) {
+    setError("Failed to apply promo code");
+    setTimeout(() => setError(null), 3000);
+  }
+};
 
   const handleCheck = async () => {
     if (!urlInput.trim() && !textInput.trim() && !uploadedImage) return;
