@@ -1679,7 +1679,12 @@ export default function FactChecker() {
             )}
           </div>
 
-{error && (
+</div>
+              </div>
+            </div>
+          )}
+
+          {error && (
             <div style={{
               background: "rgba(255,23,68,0.08)",
               border: "1px solid rgba(255,23,68,0.25)",
@@ -1696,7 +1701,6 @@ export default function FactChecker() {
                   
                   {error.includes('Free tier limit') && (
                     <>
-                      {/* Promo Code Input */}
                       <div style={{ marginTop: 16, marginBottom: 16 }}>
                         <div style={{ fontSize: 12, color: "#FFB300", marginBottom: 8, fontFamily: "var(--mono)" }}>
                           💡 Have a promo code? Enter it below:
@@ -1751,7 +1755,6 @@ export default function FactChecker() {
                         )}
                       </div>
                       
-                      {/* Upgrade Button */}
                       <button
                         onClick={async () => {
                           try {
@@ -1785,55 +1788,6 @@ export default function FactChecker() {
                         ⚡ Or Upgrade to Pro - $7/month for Unlimited
                       </button>
                     </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-              border: "1px solid rgba(255,23,68,0.25)",
-              borderRadius: 12,
-              padding: "16px 20px",
-              marginBottom: 24,
-              fontSize: 16,
-              color: "#EF9A9A"
-            }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                <span style={{ fontSize: 20 }}>⚠</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ marginBottom: 8 }}>{error}</div>
-                  
-                  {error.includes('Free tier limit') && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          const response = await fetch('/api/checkout', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              priceId: 'price_1T45UJRQdqd4bJUlx4z2g256',
-                              userId: visitorId
-                            })
-                          });
-                          const { url } = await response.json();
-                          window.location.href = url;
-                        } catch (err) {
-                          alert('Failed to start checkout. Please try again.');
-                        }
-                      }}
-                      style={{
-                        padding: '12px 24px',
-                        background: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A6F 100%)',
-                        border: 'none',
-                        borderRadius: 8,
-                        color: '#FFFFFF',
-                        fontSize: 14,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(229,57,53,0.3)'
-                      }}
-                    >
-                      ⚡ Upgrade to Pro - $7/month
-                    </button>
                   )}
                 </div>
               </div>
