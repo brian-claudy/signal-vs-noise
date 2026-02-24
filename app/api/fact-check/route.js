@@ -108,17 +108,21 @@ if (!isPro) {
     }
   }
   
-  // Check IP limit (5/day - catches incognito abuse)
+  // Check IP limit (5/day - catches incognito abuse) - but allow if they have bonus checks
   if (ipUsage >= 5) {
-    return NextResponse.json({ 
-      error: { 
-        message: 'Daily limit reached from this network. Upgrade to Pro for unlimited access!',
-        code: 'rate_limit_exceeded',
-        upgradeUrl: '/upgrade'
-      } 
-    }, { status: 429 });
+    if (bonusChecks > 0) {
+      // Already decremented above, just log
+      console.log('IP LIMIT HIT - Using bonus check');
+    } else {
+      return NextResponse.json({ 
+        error: { 
+          message: 'Daily limit reached from this network. Upgrade to Pro for unlimited access!',
+          code: 'rate_limit_exceeded',
+          upgradeUrl: '/upgrade'
+        } 
+      }, { status: 429 });
+    }
   }
-}
 
     // Check daily cost budget (circuit breaker)
     const costToday = parseFloat(await redis.get(costKey) || '0');
