@@ -80,36 +80,45 @@ export async function POST(request) {
     const isPro = await redis.get(`user:${userId}:pro`);
     console.log('USER:', userId, 'isPro:', isPro);
 
-    // Only apply rate limiting for free tier users
-    if (!isPro) {
-      const usage = await redis.get(usageKey) || 0;
-      const ipUsage = await redis.get(ipUsageKey) || 0;
-      
-      console.log('USAGE CHECK:', usageKey, '=', usage, '/ limit:', RATE_LIMIT.FREE_TIER_CHECKS);
-      console.log('IP USAGE CHECK:', ipUsageKey, '=', ipUsage, '/ IP limit: 5');
-      
-      // Check fingerprint limit (2/day)
-      if (usage >= RATE_LIMIT.FREE_TIER_CHECKS) {
-        return NextResponse.json({ 
-          error: { 
-            message: 'Free tier limit reached. You\'ve used your 2 free fact-checks. Upgrade to Pro for unlimited access!',
-            code: 'rate_limit_exceeded',
-            upgradeUrl: '/upgrade'
-          } 
-        }, { status: 429 });
-      }
-      
-      // Check IP limit (5/day - catches incognito abuse)
-      if (ipUsage >= 5) {
-        return NextResponse.json({ 
-          error: { 
-            message: 'Daily limit reached from this network. Upgrade to Pro for unlimited access!',
-            code: 'rate_limit_exceeded',
-            upgradeUrl: '/upgrade'
-          } 
-        }, { status: 429 });
-      }
+   // Only apply rate limiting for free tier users
+if (!isPro) {
+  const usage = await redis.get(usageKey) || 0;
+  const ipUsage = await redis.get(ipUsageKey) || 0;
+  const bonusKey = `bonus:${userId}`;
+  const bonusChecks = parseInt(await redis.get(bonusKey) || '0');
+  
+  console.log('USAGE CHECK:', usageKey, '=', usage, '/ limit:', RATE_LIMIT.FREE_TIER_CHECKS);
+  console.log('IP USAGE CHECK:', ipUsageKey, '=', ipUsage, '/ IP limit: 5');
+  console.log('BONUS CHECKS:', bonusKey, '=', bonusChecks);
+  
+  // Check fingerprint limit (2/day) - but allow if they have bonus checks
+  if (usage >= RATE_LIMIT.FREE_TIER_CHECKS) {
+    if (bonusChecks > 0) {
+      // Use a bonus check
+      await redis.decr(bonusKey);
+      console.log('USED BONUS CHECK - Remaining:', bonusChecks - 1);
+    } else {
+      return NextResponse.json({ 
+        error: { 
+          message: 'Free tier limit reached. You\'ve used your 2 free fact-checks. Upgrade to Pro for unlimited access!',
+          code: 'rate_limit_exceeded',
+          upgradeUrl: '/upgrade'
+        } 
+      }, { status: 429 });
     }
+  }
+  
+  // Check IP limit (5/day - catches incognito abuse)
+  if (ipUsage >= 5) {
+    return NextResponse.json({ 
+      error: { 
+        message: 'Daily limit reached from this network. Upgrade to Pro for unlimited access!',
+        code: 'rate_limit_exceeded',
+        upgradeUrl: '/upgrade'
+      } 
+    }, { status: 429 });
+  }
+}
 
     // Check daily cost budget (circuit breaker)
     const costToday = parseFloat(await redis.get(costKey) || '0');
