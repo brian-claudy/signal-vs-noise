@@ -5,18 +5,18 @@ import { Bebas_Neue, DM_Sans, JetBrains_Mono } from 'next/font/google';
 const bebasNeue = Bebas_Neue({ 
   weight: '400',
   subsets: ['latin'],
-  display: 'swap',
+  display: 'block',
 });
 const dmSans = DM_Sans({ 
   weight: ['300', '400', '500', '600'],
   subsets: ['latin'],
-  display: 'swap',
+  display: 'block',
 });
 
 const jetBrainsMono = JetBrains_Mono({ 
   weight: ['400', '700'],
   subsets: ['latin'],
-  display: 'swap',
+  display: 'block',
 });
 
 import { useState, useRef, useCallback, useEffect } from 'react';
