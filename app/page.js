@@ -1609,36 +1609,6 @@ export default function FactChecker() {
               )}
             </div>
             
-            <div style={{ marginTop: 12 }}>
-              <input
-                type="text"
-                placeholder="Have a promo code? Enter it here..."
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && promoCode) {
-                    handlePromoCode();
-                  }
-                }}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  background: "rgba(255,255,255,0.02)",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                  borderRadius: 6,
-                  color: "#E0E0E0",
-                  fontSize: 11,
-                  fontFamily: "var(--mono)",
-                  outline: "none"
-                }}
-              />
-              {promoSuccess && (
-                <div style={{ marginTop: 6, fontSize: 10, color: "#00C851", fontFamily: "var(--mono)" }}>
-                  ✓ {promoSuccess}
-                </div>
-              )}
-            </div>
-            
             {loading ? (
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                 <button
@@ -1709,9 +1679,117 @@ export default function FactChecker() {
             )}
           </div>
 
-          {error && (
+{error && (
             <div style={{
               background: "rgba(255,23,68,0.08)",
+              border: "1px solid rgba(255,23,68,0.25)",
+              borderRadius: 12,
+              padding: "16px 20px",
+              marginBottom: 24,
+              fontSize: 16,
+              color: "#EF9A9A"
+            }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <span style={{ fontSize: 20 }}>⚠</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ marginBottom: 8 }}>{error}</div>
+                  
+                  {error.includes('Free tier limit') && (
+                    <>
+                      {/* Promo Code Input */}
+                      <div style={{ marginTop: 16, marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, color: "#FFB300", marginBottom: 8, fontFamily: "var(--mono)" }}>
+                          💡 Have a promo code? Enter it below:
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <input
+                            type="text"
+                            placeholder="Enter promo code..."
+                            value={promoCode}
+                            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && promoCode) {
+                                handlePromoCode();
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: "10px 14px",
+                              background: "rgba(255,255,255,0.05)",
+                              border: "1px solid rgba(255,255,255,0.15)",
+                              borderRadius: 8,
+                              color: "#FFFFFF",
+                              fontSize: 14,
+                              fontFamily: "var(--mono)",
+                              outline: "none"
+                            }}
+                          />
+                          <button
+                            onClick={handlePromoCode}
+                            disabled={!promoCode}
+                            style={{
+                              padding: "10px 20px",
+                              background: promoCode ? "rgba(255,179,0,0.2)" : "rgba(255,255,255,0.05)",
+                              border: `1px solid ${promoCode ? "rgba(255,179,0,0.4)" : "rgba(255,255,255,0.1)"}`,
+                              borderRadius: 8,
+                              color: promoCode ? "#FFB300" : "#666",
+                              cursor: promoCode ? "pointer" : "not-allowed",
+                              fontSize: 11,
+                              fontFamily: "var(--mono)",
+                              letterSpacing: 1,
+                              fontWeight: 600,
+                              transition: "all 0.2s"
+                            }}
+                          >
+                            APPLY
+                          </button>
+                        </div>
+                        {promoSuccess && (
+                          <div style={{ marginTop: 8, fontSize: 12, color: "#00C851", fontFamily: "var(--mono)" }}>
+                            ✓ {promoSuccess}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Upgrade Button */}
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch('/api/checkout', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                priceId: 'price_1T45UJRQdqd4bJUlx4z2g256',
+                                userId: visitorId
+                              })
+                            });
+                            const { url } = await response.json();
+                            window.location.href = url;
+                          } catch (err) {
+                            alert('Failed to start checkout. Please try again.');
+                          }
+                        }}
+                        style={{
+                          padding: '12px 24px',
+                          background: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A6F 100%)',
+                          border: 'none',
+                          borderRadius: 8,
+                          color: '#FFFFFF',
+                          fontSize: 14,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(229,57,53,0.3)',
+                          width: '100%'
+                        }}
+                      >
+                        ⚡ Or Upgrade to Pro - $7/month for Unlimited
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
               border: "1px solid rgba(255,23,68,0.25)",
               borderRadius: 12,
               padding: "16px 20px",
