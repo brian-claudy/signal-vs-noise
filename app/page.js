@@ -1694,7 +1694,7 @@ export default function FactChecker() {
                 <div style={{ flex: 1 }}>
                   <div style={{ marginBottom: 8 }}>{error}</div>
                   
-                  {error.includes('Free tier limit') && (
+             {(error.includes('Free tier limit') || error.includes('Daily limit reached')) && (
                     <>
                       <div style={{ marginTop: 16, marginBottom: 16 }}>
                         <div style={{ fontSize: 12, color: "#FFB300", marginBottom: 8, fontFamily: "var(--mono)" }}>
