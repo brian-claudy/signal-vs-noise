@@ -1679,11 +1679,6 @@ export default function FactChecker() {
             )}
           </div>
 
-</div>
-              </div>
-            </div>
-          )}
-
           {error && (
             <div style={{
               background: "rgba(255,23,68,0.08)",
