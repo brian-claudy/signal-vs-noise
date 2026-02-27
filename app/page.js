@@ -6,17 +6,20 @@ const bebasNeue = Bebas_Neue({
   weight: '400',
   subsets: ['latin'],
   display: 'block',
+  fallback: ['system-ui', 'arial'],
 });
 const dmSans = DM_Sans({ 
   weight: ['300', '400', '500', '600'],
   subsets: ['latin'],
   display: 'block',
+  fallback: ['system-ui', 'arial'],
 });
 
 const jetBrainsMono = JetBrains_Mono({ 
   weight: ['400', '700'],
   subsets: ['latin'],
   display: 'block',
+  fallback: ['Courier New', 'monospace'],
 });
 
 import { useState, useRef, useCallback, useEffect } from 'react';
@@ -125,6 +128,65 @@ CRITICAL OUTPUT RULES:
 Required JSON (output this and nothing else):
 {"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"One sentence verdict under 150 chars based on actual search results.","bottomLine":"Quick takeaway under 150 chars.","citations":[{"title":"Source","url":"https://..."}]}`;
 
+// ── Deep Research prompt ────────────────────────────────────────────────────
+const DEEP_RESEARCH_PROMPT = `You are an elite fact-checking investigative researcher conducting deep analysis of misinformation claims. This is a comprehensive research task requiring 10-15 searches.
+
+CRITICAL ANTI-HALLUCINATION RULES:
+- Base EVERY factual claim on actual search results you retrieved
+- If you cannot find evidence in searches, you MUST use verdict "UNVERIFIABLE"
+- NEVER make up facts, statistics, dates, or quotes
+- All citations MUST be real URLs from your actual search results
+- If search returns no relevant results, say so explicitly
+
+DEEP RESEARCH PROCESS (10-15 searches required):
+1. COMPREHENSIVE FACT-CHECK DATABASE SWEEP (5-7 searches):
+   a) Search ALL major fact-check sites individually:
+      - "site:snopes.com [claim]"
+      - "site:politifact.com [claim]"
+      - "site:factcheck.org [claim]"
+      - "site:reuters.com/fact-check [claim]"
+      - "site:apnews.com/ap-fact-check [claim]"
+      - "site:fullfact.org [claim]" (UK)
+      - "site:afp.com/factcheck [claim]" (Global)
+   
+2. PRIMARY SOURCE VERIFICATION (2-3 searches):
+   - Search for original documents, official statements, scientific papers
+   - Look for government data, academic research, verified reports
+   - Find direct evidence rather than secondary reporting
+
+3. COUNTER-NARRATIVE ANALYSIS (2-3 searches):
+   - Search for opposing viewpoints and rebuttals
+   - Look for expert critiques or debunking
+   - Find credible challenges to the claim
+
+4. TEMPORAL ANALYSIS (1-2 searches):
+   - Search claim with date ranges to track evolution
+   - Look for how claim has changed over time
+   - Find when claim first appeared
+
+5. EXPERT CONSULTATION (1-2 searches):
+   - Search for expert opinions from relevant fields
+   - Look for academic or professional analysis
+   - Find domain-specific expertise
+
+After all searches, provide comprehensive analysis identifying:
+- All factual claims with evidence assessment
+- Manipulation tactics used (if any)
+- Evolution of the claim over time
+- Expert consensus (if exists)
+- Conflicting evidence (if found)
+
+CRITICAL OUTPUT RULES:
+- Respond ONLY with valid JSON. No prose before or after. No markdown.
+- Keep ALL string values under 250 characters each
+- Limit "claims" array to maximum 8 items (cover ALL significant claims)
+- Limit "redFlags" array to maximum 8 items
+- Never use line breaks inside string values
+- "citations" must be from your ACTUAL search results only
+
+Required JSON structure:
+{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"Comprehensive verdict based on deep research.","claims":[{"claim":"Specific claim","status":"TRUE|FALSE|MISLEADING|UNVERIFIABLE","explanation":"Detailed evidence-based explanation citing sources, under 250 chars."}],"context":"Critical background from deep research, under 250 chars.","redFlags":["Specific manipulation tactic or red flag identified"],"citations":[{"title":"Source name","url":"https://...","cited_text":"Direct quote if available","page_age":"Last updated if available"}],"factCheckMatch":"Name of fact-check site if matching fact-check found, empty string if not","bottomLine":"Comprehensive takeaway from deep research, under 250 chars.","researchDepth":"Number of searches conducted and key insights discovered"}`;
+
 const DEMO_CLAIM = "Breaking: The CDC just admitted that 90% of vaccinated people have severe side effects. Mainstream media is hiding this!";
 
 const verdictConfig = {
@@ -205,6 +267,7 @@ function ClaimCard({ claim, index }) {
     </div>
   );
 }
+
 function generateReport(result, urlInput, textInput, hasImage) {
   const verdictLabels = {
     "FACT": "VERIFIED FACT", "MOSTLY FACT": "MOSTLY ACCURATE",
@@ -357,6 +420,7 @@ function generateReport(result, urlInput, textInput, hasImage) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+
 function ResultPanel({ result, urlInput, textInput, hasImage }) {
   const cfg = verdictConfig[result.verdict] || verdictConfig["UNVERIFIABLE"];
   const [showRedFlags, setShowRedFlags] = useState(false);
@@ -546,7 +610,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {result.citations.map((cite, i) => (
-              <a
+              
                 key={i}
                 href={cite.url}
                 target="_blank"
@@ -751,6 +815,7 @@ Full analysis with sources:
     </div>
   );
 }
+
 export default function FactChecker() {
   const [urlInput, setUrlInput] = useState("");
   const [textInput, setTextInput] = useState("");
@@ -764,6 +829,7 @@ export default function FactChecker() {
   const [isFirstVisit, setIsFirstVisit] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
   const [quickCheckMode, setQuickCheckMode] = useState(false);
+  const [deepResearchMode, setDeepResearchMode] = useState(false);
   const [history, setHistory] = useState([]);
   const [visitorId, setVisitorId] = useState(null);
   const [promoCode, setPromoCode] = useState("");
@@ -789,13 +855,13 @@ export default function FactChecker() {
     const tools = [{ 
       type: "web_search_20250305", 
       name: "web_search",
-      max_uses: 5
+      max_uses: deepResearchMode ? 15 : 5
     }];
     let finalText = "";
-    const MAX_TURNS = 5;
+    const MAX_TURNS = deepResearchMode ? 12 : 5;
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const timeoutId = setTimeout(() => controller.abort(), 40000);
+      const timeoutId = setTimeout(() => controller.abort(), deepResearchMode ? 90000 : 40000);
       let response;
       try {
         response = await fetch("/api/fact-check", {
@@ -817,14 +883,25 @@ export default function FactChecker() {
       const toolUseBlocks = data.content.filter(b => b.type === "tool_use");
       if (data.stop_reason === "tool_use" && toolUseBlocks.length > 0) {
         setLoadingStatus(`${statusPrefix} (${turn + 1}/${MAX_TURNS})`);
-        const substexts = [
+        const substexts = deepResearchMode ? [
+          "Searching Snopes, PolitiFact, FactCheck.org",
+          "Searching Reuters fact-checks and AP fact-checks",
+          "Searching UK FullFact and AFP global fact-checks",
+          "Verifying with primary sources and official statements",
+          "Cross-referencing expert opinions and academic research",
+          "Analyzing counter-narratives and rebuttals",
+          "Tracking claim evolution over time",
+          "Gathering final verification sources",
+          "Synthesizing comprehensive analysis",
+          "Finalizing deep research report"
+        ] : [
           "Checking Snopes, PolitiFact, and FactCheck.org",
           "Finding primary sources and official statements",
           "Cross-referencing Reuters and AP fact-checks",
           "Searching for counter-narratives and rebuttals",
           "Verifying with recent news coverage"
         ];
-        setLoadingSubtext(substexts[turn] || "Gathering additional sources");
+        setLoadingSubtext(substexts[turn] || (deepResearchMode ? "Conducting additional research" : "Gathering additional sources"));
         messages.push({ role: "assistant", content: data.content });
         messages.push({ role: "user", content: toolUseBlocks.map(tb => ({ type: "tool_result", tool_use_id: tb.id, content: [] })) });
       } else {
@@ -835,51 +912,46 @@ export default function FactChecker() {
     return finalText;
   };
 
-const parseJSON = (text) => {
-  try {
-    // Try parsing directly first
+  const parseJSON = (text) => {
     try {
-      return JSON.parse(text);
-    } catch (e) {
-      // Direct parse failed, extract JSON
-    }
-    
-    // Remove markdown code fences
-    let clean = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-    
-    // Find first { and last }
-    const firstBrace = clean.indexOf('{');
-    if (firstBrace === -1) throw new Error('No JSON found in response');
-    
-    clean = clean.slice(firstBrace);
-    const lastBrace = clean.lastIndexOf('}');
-    if (lastBrace === -1) throw new Error('No closing brace found');
-    
-    clean = clean.slice(0, lastBrace + 1);
-    
-    // Remove any remaining prose after the JSON
-    const lines = clean.split('\n');
-    let jsonLines = [];
-    let inJson = false;
-    let braceCount = 0;
-    
-    for (const line of lines) {
-      for (const char of line) {
-        if (char === '{') braceCount++;
-        if (char === '}') braceCount--;
+      try {
+        return JSON.parse(text);
+      } catch (e) {
       }
       
-      if (line.includes('{')) inJson = true;
-      if (inJson) jsonLines.push(line);
-      if (braceCount === 0 && inJson) break;
+      let clean = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      
+      const firstBrace = clean.indexOf('{');
+      if (firstBrace === -1) throw new Error('No JSON found in response');
+      
+      clean = clean.slice(firstBrace);
+      const lastBrace = clean.lastIndexOf('}');
+      if (lastBrace === -1) throw new Error('No closing brace found');
+      
+      clean = clean.slice(0, lastBrace + 1);
+      
+      const lines = clean.split('\n');
+      let jsonLines = [];
+      let inJson = false;
+      let braceCount = 0;
+      
+      for (const line of lines) {
+        for (const char of line) {
+          if (char === '{') braceCount++;
+          if (char === '}') braceCount--;
+        }
+        
+        if (line.includes('{')) inJson = true;
+        if (inJson) jsonLines.push(line);
+        if (braceCount === 0 && inJson) break;
+      }
+      
+      return JSON.parse(jsonLines.join('\n'));
+    } catch (e) {
+      console.error('JSON PARSE ERROR:', e, 'TEXT:', text.substring(0, 500));
+      throw new Error('Failed to parse fact-check result');
     }
-    
-    return JSON.parse(jsonLines.join('\n'));
-  } catch (e) {
-    console.error('JSON PARSE ERROR:', e, 'TEXT:', text.substring(0, 500));
-    throw new Error('Failed to parse fact-check result');
-  }
-};
+  };
 
   const isUrl = (str) => {
     return str.includes("instagram.com") || str.includes("twitter.com") || 
@@ -906,38 +978,38 @@ const parseJSON = (text) => {
     setUploadedImage(null);
   };
 
-const handlePromoCode = async () => {
-  if (!promoCode || !visitorId) return;
-  
-  try {
-    const response = await fetch('/api/promo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: promoCode, visitorId })
-    });
+  const handlePromoCode = async () => {
+    if (!promoCode || !visitorId) return;
     
-    const data = await response.json();
-    
-    if (response.ok) {
-      setPromoSuccess(data.message);
-      setPromoCode("");
-      setError(null); // CLEAR THE ERROR!
-      setTimeout(() => setPromoSuccess(""), 5000);
-    } else {
-      setError(data.error || "Invalid promo code");
+    try {
+      const response = await fetch('/api/promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: promoCode, visitorId })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setPromoSuccess(data.message);
+        setPromoCode("");
+        setError(null);
+        setTimeout(() => setPromoSuccess(""), 5000);
+      } else {
+        setError(data.error || "Invalid promo code");
+        setTimeout(() => setError(null), 3000);
+      }
+    } catch (err) {
+      setError("Failed to apply promo code");
       setTimeout(() => setError(null), 3000);
     }
-  } catch (err) {
-    setError("Failed to apply promo code");
-    setTimeout(() => setError(null), 3000);
-  }
-};
+  };
 
   const handleCheck = async () => {
     if (!urlInput.trim() && !textInput.trim() && !uploadedImage) return;
     
     setLoading(true);
-    setLoadingStatus("ANALYZING...");
+    setLoadingStatus(deepResearchMode ? "DEEP RESEARCH STARTING..." : "ANALYZING...");
     setError(null);
     setResult(null);
     setModelInfo(null);
@@ -978,6 +1050,42 @@ const handlePromoCode = async () => {
 
       const controller = new AbortController();
       abortRef.current = controller;
+
+      if (deepResearchMode) {
+        setLoadingStatus("DEEP RESEARCH MODE...");
+        setLoadingSubtext("Conducting comprehensive 10-15 search analysis (3-5 min)");
+        
+        const deepMessage = uploadedImage ? messageContent : userMessage;
+        
+        const deepResult = await runAgenticLoop(
+          DEEP_RESEARCH_PROMPT,
+          deepMessage,
+          "claude-sonnet-4-5-20250929",
+          controller,
+          "DEEP RESEARCH"
+        );
+
+        const parsed = parseJSON(deepResult);
+        parsed._modelInfo = { model: "Sonnet (Deep Research)", escalated: true, escalateReason: "Deep Research mode selected" };
+        setModelInfo(parsed._modelInfo);
+        setResult(parsed);
+        setHistory(prev => [{ 
+          urlInput: urlInput.trim(), 
+          textInput: textInput.trim(), 
+          hasImage: !!uploadedImage,
+          result: parsed, 
+          time: new Date() 
+        }, ...prev.slice(0, 4)]);
+        
+        if (isFirstVisit) {
+          setIsFirstVisit(false);
+          setTimeout(() => {
+            setShowCelebration(true);
+            setTimeout(() => setShowCelebration(false), 3000);
+          }, 400);
+        }
+        return;
+      }
 
       if (quickCheckMode) {
         setLoadingStatus("QUICK CHECK...");
@@ -1117,7 +1225,7 @@ const handlePromoCode = async () => {
     setError(null);
   };
 
-  return (
+return (
     <>
       <style>{`
         :root {
@@ -1182,6 +1290,10 @@ const handlePromoCode = async () => {
         @keyframes staggerIn {
           from { opacity: 0; transform: translateX(-8px); }
           to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
         .field-label {
@@ -1327,7 +1439,8 @@ const handlePromoCode = async () => {
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
       `}</style>
-<div style={{
+
+      <div style={{
         minHeight: "100vh",
         background: "#080810",
         color: "var(--text)",
@@ -1423,7 +1536,8 @@ const handlePromoCode = async () => {
               Paste a URL, a claim, or upload a screenshot — get the truth.
             </p>
           </div>
-<div style={{
+
+          <div style={{
             background: "linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)",
             border: "1px solid rgba(255,255,255,0.09)",
             borderRadius: 18,
@@ -1604,13 +1718,17 @@ const handlePromoCode = async () => {
               onChange={handleImageUpload} 
               style={{ display: "none" }} 
             />
-<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 11, color: "#666", fontFamily: "var(--mono)" }}>
                   ⌘ + ENTER to check
                 </span>
                 <button
-                  onClick={() => setQuickCheckMode(!quickCheckMode)}
+                  onClick={() => {
+                    setQuickCheckMode(!quickCheckMode);
+                    if (!quickCheckMode) setDeepResearchMode(false);
+                  }}
                   title={quickCheckMode ? "Quick Check: Fast mode (5 sec, less detailed)" : "Click for Quick Check mode (faster but less thorough)"}
                   style={{
                     background: quickCheckMode ? "rgba(100,181,246,0.12)" : "transparent",
@@ -1629,9 +1747,32 @@ const handlePromoCode = async () => {
                 >
                   ⚡ QUICK
                 </button>
-                {quickCheckMode && (
-                  <span style={{ fontSize: 10, color: "#64B5F6", fontFamily: "var(--mono)" }}>
-                    Fast mode: ~5 sec
+                <button
+                  onClick={() => {
+                    setDeepResearchMode(!deepResearchMode);
+                    if (!deepResearchMode) setQuickCheckMode(false);
+                  }}
+                  title={deepResearchMode ? "Deep Research: Comprehensive mode (3-5 min, 10-15 searches)" : "Click for Deep Research mode (comprehensive analysis)"}
+                  style={{
+                    background: deepResearchMode ? "rgba(156,39,176,0.12)" : "transparent",
+                    border: deepResearchMode ? "1px solid rgba(156,39,176,0.3)" : "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 6,
+                    color: deepResearchMode ? "#AB47BC" : "#666",
+                    cursor: "pointer",
+                    fontSize: 10,
+                    padding: "4px 8px",
+                    fontFamily: "var(--mono)",
+                    letterSpacing: 1,
+                    transition: "all 0.15s"
+                  }}
+                  onMouseEnter={e => { if (!deepResearchMode) e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }}
+                  onMouseLeave={e => { if (!deepResearchMode) e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
+                >
+                  🔬 DEEP
+                </button>
+                {(quickCheckMode || deepResearchMode) && (
+                  <span style={{ fontSize: 10, color: deepResearchMode ? "#AB47BC" : "#64B5F6", fontFamily: "var(--mono)" }}>
+                    {deepResearchMode ? "Deep mode: ~3-5 min" : "Quick mode: ~5 sec"}
                   </span>
                 )}
               </div>
@@ -1730,7 +1871,7 @@ const handlePromoCode = async () => {
                 <div style={{ flex: 1 }}>
                   <div style={{ marginBottom: 8 }}>{error}</div>
                   
-             {(error.includes('Free tier limit') || error.includes('Daily limit reached')) && (
+                  {(error.includes('Free tier limit') || error.includes('Daily limit reached')) && (
                     <>
                       <div style={{ marginTop: 16, marginBottom: 16 }}>
                         <div style={{ fontSize: 12, color: "#FFB300", marginBottom: 8, fontFamily: "var(--mono)" }}>
@@ -1824,7 +1965,8 @@ const handlePromoCode = async () => {
               </div>
             </div>
           )}
-{showCelebration && (
+
+          {showCelebration && (
             <div style={{
               position: "fixed", top: "50%", left: "50%",
               transform: "translate(-50%, -50%)", zIndex: 9999,
