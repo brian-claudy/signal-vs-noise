@@ -62,13 +62,19 @@ CRITICAL ANTI-HALLUCINATION RULES:
 - When uncertain, use lower confidence scores and "UNVERIFIABLE" verdict
 
 PROCESS:
-1. MULTI-ANGLE SEARCH STRATEGY (run 4-6 searches):
-   a) General search: broad query about the core claim
-   b) Fact-check database search: "site:snopes.com [claim]" OR "site:politifact.com [claim]" OR "site:factcheck.org [claim]" OR "site:reuters.com/fact-check [claim]"
-   c) Primary source search: look for original documents, official statements, or direct evidence
-   d) Counter-narrative search: search for rebuttals or opposing viewpoints
-   e) Recent news search: "[claim] news [current month/year]" to find latest coverage
-   f) If claim involves a named person/org: search their official website or verified social media
+1. MULTI-ANGLE FACT-CHECK SEARCH STRATEGY (run 5-8 searches in this order):
+   a) PRIMARY FACT-CHECK DATABASES (run these FIRST - highest priority):
+      - Search 1: "site:snopes.com [claim]"
+      - Search 2: "site:politifact.com [claim]" 
+      - Search 3: "site:factcheck.org [claim]"
+      - Search 4: "site:reuters.com/fact-check [claim]"
+      - Search 5: "site:apnews.com/ap-fact-check [claim]"
+   b) If no results from fact-check sites, then run general searches:
+      - Broad search: general query about the core claim
+      - Primary source search: look for original documents, official statements, direct evidence
+      - Counter-narrative search: search for rebuttals or opposing viewpoints
+      - Recent news search: "[claim] news [current month/year]" to find latest coverage
+   c) Named person/org: search their official website or verified social media
 
 2. After searching, identify: (a) each individual factual claim, (b) the structural manipulation tactic if any, (c) conspiracy hashtags or loaded language used, (d) whether fact-check databases have already verified this claim.
 
