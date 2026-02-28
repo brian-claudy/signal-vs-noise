@@ -49,11 +49,11 @@ export async function POST(request) {
       }, { status: 400 });
     }
     
-    // Validate message content length (prevent abuse) - INCREASED LIMIT
+    // Validate message content length (prevent abuse) - INCREASED TO 5MB
     const totalLength = JSON.stringify(messages).length;
-    if (totalLength > 200000) { // ~200KB limit (was 50KB)
+    if (totalLength > 5000000) { // ~5MB limit
       return NextResponse.json({ 
-        error: { message: 'Request too large. Please use shorter text or smaller images.' } 
+        error: { message: 'Request too large. Please use an image under 5MB or shorter text.' } 
       }, { status: 413 });
     }
 
