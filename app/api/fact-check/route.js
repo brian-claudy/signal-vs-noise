@@ -49,9 +49,9 @@ export async function POST(request) {
       }, { status: 400 });
     }
     
-    // Validate message content length (prevent abuse)
+    // Validate message content length (prevent abuse) - INCREASED LIMIT
     const totalLength = JSON.stringify(messages).length;
-    if (totalLength > 50000) { // ~50KB limit
+    if (totalLength > 200000) { // ~200KB limit (was 50KB)
       return NextResponse.json({ 
         error: { message: 'Request too large. Please use shorter text or smaller images.' } 
       }, { status: 413 });
@@ -158,8 +158,8 @@ export async function POST(request) {
     if (!isPro) {
       const usage = await redis.get(usageKey) || 0;
       const ipUsage = await redis.get(ipUsageKey) || 0;
-      await redis.set(usageKey, usage + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
-      await redis.set(ipUsageKey, ipUsage + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
+      await redis.set(usageKey, Number(usage) + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
+      await redis.set(ipUsageKey, Number(ipUsage) + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
     }
     
     // Update daily cost tracking
