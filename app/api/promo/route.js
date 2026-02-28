@@ -11,6 +11,7 @@ const PROMO_CODES = {
   'FRIEND5': 5,
   'BETA10': 10,
   'EARLYBIRD': 5,
+  'PRODUCTHUNT': 50
 };
 
 export async function POST(request) {
