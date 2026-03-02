@@ -5,20 +5,20 @@ import { Bebas_Neue, DM_Sans, JetBrains_Mono } from 'next/font/google';
 const bebasNeue = Bebas_Neue({ 
   weight: '400',
   subsets: ['latin'],
-  display: 'block',
+  display: 'optional', // This prevents flash!
   fallback: ['system-ui', 'arial'],
 });
 const dmSans = DM_Sans({ 
   weight: ['300', '400', '500', '600'],
   subsets: ['latin'],
-  display: 'block',
+  display: 'optional', // This prevents flash!
   fallback: ['system-ui', 'arial'],
 });
 
 const jetBrainsMono = JetBrains_Mono({ 
   weight: ['400', '700'],
   subsets: ['latin'],
-  display: 'block',
+  display: 'optional', // This prevents flash!
   fallback: ['Courier New', 'monospace'],
 });
 
