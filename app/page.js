@@ -917,7 +917,35 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
     alert(`Failed: ${err.message}`);
   }
 }}
-          const shareText = `🎯 Fact-Check Results: ${result.verdict}
+style={{
+  display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+  width: "100%", marginTop: 10,
+  padding: "14px 20px",
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 10,
+  color: "#607D8B",
+  cursor: "pointer",
+  fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 2.5,
+  transition: "all 0.2s",
+}}
+onMouseEnter={e => { 
+  e.currentTarget.style.background = "rgba(255,255,255,0.07)"; 
+  e.currentTarget.style.color = "#90A4AE"; 
+}}
+onMouseLeave={e => { 
+  e.currentTarget.style.background = "rgba(255,255,255,0.03)"; 
+  e.currentTarget.style.color = "#607D8B"; 
+}}
+>
+  <span style={{ fontSize: 14, opacity: 0.6 }}>🔗</span>
+  SHARE THIS FACT-CHECK
+</button>
+
+<button
+  onClick={async () => {
+    const shareText = `🎯 Fact-Check Results: ${result.verdict}
+    
 
 📊 Bottom Line: ${result.bottomLine}
 
