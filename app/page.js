@@ -774,6 +774,67 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
       </button>
       <button
         onClick={async (e) => {
+  console.log('Share button clicked!');
+  try {
+    console.log('Calling /api/save-check with data:', { 
+      hasResult: !!result, 
+      hasUrlInput: !!urlInput, 
+      hasTextInput: !!textInput, 
+      hasImage 
+    });
+    
+    const response = await fetch('/api/save-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        result, 
+        urlInput, 
+        textInput, 
+        hasImage 
+      })
+    });
+    
+    console.log('Response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API returned error:', errorText);
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Got response data:', data);
+    
+    if (!data.id) {
+      throw new Error('No ID in response');
+    }
+    
+    const shareUrl = `https://signalnoise.tech/check/${data.id}`;
+    console.log('Share URL created:', shareUrl);
+    
+    await navigator.clipboard.writeText(shareUrl);
+    console.log('Copied to clipboard successfully!');
+    
+    const btn = e.currentTarget;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span style="font-size:11px">✓</span> LINK COPIED!';
+    btn.style.background = 'rgba(0,200,81,0.12)';
+    btn.style.borderColor = 'rgba(0,200,81,0.3)';
+    btn.style.color = '#00C851';
+    
+    setTimeout(() => {
+      btn.innerHTML = originalText;
+      btn.style.background = 'rgba(255,255,255,0.03)';
+      btn.style.borderColor = 'rgba(255,255,255,0.1)';
+      btn.style.color = '#607D8B';
+    }, 3000);
+  } catch (err) {
+    console.error('SHARE ERROR:', err);
+    console.error('Error message:', err.message);
+    console.error('Error stack:', err.stack);
+    alert(`Failed: ${err.message}`);
+  }
+}}
           const shareText = `🎯 Fact-Check Results: ${result.verdict}
 
 📊 Bottom Line: ${result.bottomLine}
