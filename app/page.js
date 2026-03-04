@@ -773,7 +773,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         SHARE THIS FACT-CHECK
       </button>
       <button
-        onClick={async () => {
+        onClick={async (e) => {
           const shareText = `🎯 Fact-Check Results: ${result.verdict}
 
 📊 Bottom Line: ${result.bottomLine}
@@ -796,7 +796,7 @@ Fact-checked with Signal vs Noise AI
           } else {
             try {
               await navigator.clipboard.writeText(shareText);
-              const btn = event.currentTarget;
+              const btn = e.currentTarget;
               const originalText = btn.innerHTML;
               btn.innerHTML = '<span style="font-size:11px">✓</span> COPIED TO CLIPBOARD';
               btn.style.color = '#00C851';
