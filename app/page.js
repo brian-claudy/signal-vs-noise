@@ -518,7 +518,7 @@ function ResultPanel({ result, onClose, urlInput, textInput, hasImage }) {
             marginBottom: 12
           }}>SOURCES & CITATIONS</div>
           {result.citations.map((cite, i) => (
-            
+            <a
               key={i}
               href={cite.url}
               target="_blank"
