@@ -706,7 +706,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         )}
       </button>
 <button
-        onClick={async () => {
+        onClick={async (e) => {
           try {
             // Save fact-check to database
             const response = await fetch('/api/save-check', {
@@ -727,7 +727,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
             await navigator.clipboard.writeText(shareUrl);
             
             // Show success feedback
-            const btn = event.currentTarget;
+            const btn = e.currentTarget;
             const originalText = btn.innerHTML;
             btn.innerHTML = '<span style="font-size:11px">✓</span> LINK COPIED!';
             btn.style.background = 'rgba(0,200,81,0.12)';
