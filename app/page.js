@@ -1346,7 +1346,9 @@ export default function Home() {
                       e.currentTarget.style.background = "rgba(100,181,246,0.12)";
                       e.currentTarget.style.borderColor = "rgba(100,181,246,0.25)";
                     }}
-                  >⚡ UPGRADE TO PRO — $7/MO</a>
+                  >
+                    ⚡ UPGRADE TO PRO — $7/MO
+                      </a>
                 </div>
               )}
 
