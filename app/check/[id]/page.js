@@ -27,7 +27,7 @@ export default async function SharedCheck({ params }) {
     notFound();
   }
   
-  const checkData = JSON.parse(data);
+  const checkData = typeof data === 'string' ? JSON.parse(data) : data;
   const { result, urlInput, textInput, hasImage } = checkData;
   
   const verdictConfig = {
