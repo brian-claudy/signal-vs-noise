@@ -705,89 +705,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
           </>
         )}
       </button>
-
-        <button
-        onClick={async (e) => {
-          console.log('Share button clicked!');
-          try {
-            console.log('Calling /api/save-check...');
-            
-            const response = await fetch('/api/save-check', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                result, 
-                urlInput, 
-                textInput, 
-                hasImage 
-              })
-            });
-            
-            console.log('Response status:', response.status);
-            
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error('API Error:', errorText);
-              throw new Error('Failed to save');
-            }
-            
-            const data = await response.json();
-            console.log('Got ID:', data.id);
-            
-            const shareUrl = `https://signalnoise.tech/check/${data.id}`;
-            console.log('Share URL:', shareUrl);
-            
-            await navigator.clipboard.writeText(shareUrl);
-            console.log('Copied to clipboard!');
-            
-            const btn = e.currentTarget;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<span style="font-size:11px">✓</span> LINK COPIED!';
-            btn.style.background = 'rgba(0,200,81,0.12)';
-            btn.style.borderColor = 'rgba(0,200,81,0.3)';
-            btn.style.color = '#00C851';
-            
-            setTimeout(() => {
-              btn.innerHTML = originalText;
-              btn.style.background = 'rgba(255,255,255,0.03)';
-              btn.style.borderColor = 'rgba(255,255,255,0.1)';
-              btn.style.color = '#607D8B';
-            }, 3000);
-          } catch (err) {
-            console.error('Share error:', err);
-            alert('Failed to create share link. Check console.');
-          }
-        }}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-          width: "100%", marginTop: 10,
-          padding: "14px 20px",
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: 10,
-          color: "#607D8B",
-          cursor: "pointer",
-          fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 2.5,
-          transition: "all 0.2s",
-        }}
-        onMouseEnter={e => { 
-          e.currentTarget.style.background = "rgba(255,255,255,0.07)"; 
-          e.currentTarget.style.color = "#90A4AE"; 
-          e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)";
-          e.currentTarget.style.transform = "translateY(-1px)";
-        }}
-        onMouseLeave={e => { 
-          e.currentTarget.style.background = "rgba(255,255,255,0.03)"; 
-          e.currentTarget.style.color = "#607D8B"; 
-          e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-          e.currentTarget.style.transform = "translateY(0)";
-        }}
-      >
-        <span style={{ fontSize: 14, opacity: 0.6 }}>🔗</span>
-        SHARE THIS FACT-CHECK
-      </button>
-          
-      <button
+<button
         onClick={async () => {
           try {
             // Save fact-check to database
@@ -855,97 +773,8 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         SHARE THIS FACT-CHECK
       </button>
       <button
-        onClick={async (e) => {
-  console.log('Share button clicked!');
-  try {
-    console.log('Calling /api/save-check with data:', { 
-      hasResult: !!result, 
-      hasUrlInput: !!urlInput, 
-      hasTextInput: !!textInput, 
-      hasImage 
-    });
-    
-    const response = await fetch('/api/save-check', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        result, 
-        urlInput, 
-        textInput, 
-        hasImage 
-      })
-    });
-    
-    console.log('Response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API returned error:', errorText);
-      throw new Error(`API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log('Got response data:', data);
-    
-    if (!data.id) {
-      throw new Error('No ID in response');
-    }
-    
-    const shareUrl = `https://signalnoise.tech/check/${data.id}`;
-    console.log('Share URL created:', shareUrl);
-    
-    await navigator.clipboard.writeText(shareUrl);
-    console.log('Copied to clipboard successfully!');
-    
-    const btn = e.currentTarget;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<span style="font-size:11px">✓</span> LINK COPIED!';
-    btn.style.background = 'rgba(0,200,81,0.12)';
-    btn.style.borderColor = 'rgba(0,200,81,0.3)';
-    btn.style.color = '#00C851';
-    
-    setTimeout(() => {
-      btn.innerHTML = originalText;
-      btn.style.background = 'rgba(255,255,255,0.03)';
-      btn.style.borderColor = 'rgba(255,255,255,0.1)';
-      btn.style.color = '#607D8B';
-    }, 3000);
-  } catch (err) {
-    console.error('SHARE ERROR:', err);
-    console.error('Error message:', err.message);
-    console.error('Error stack:', err.stack);
-    alert(`Failed: ${err.message}`);
-  }
-}}
-style={{
-  display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-  width: "100%", marginTop: 10,
-  padding: "14px 20px",
-  background: "rgba(255,255,255,0.03)",
-  border: "1px solid rgba(255,255,255,0.1)",
-  borderRadius: 10,
-  color: "#607D8B",
-  cursor: "pointer",
-  fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 2.5,
-  transition: "all 0.2s",
-}}
-onMouseEnter={e => { 
-  e.currentTarget.style.background = "rgba(255,255,255,0.07)"; 
-  e.currentTarget.style.color = "#90A4AE"; 
-}}
-onMouseLeave={e => { 
-  e.currentTarget.style.background = "rgba(255,255,255,0.03)"; 
-  e.currentTarget.style.color = "#607D8B"; 
-}}
->
-  <span style={{ fontSize: 14, opacity: 0.6 }}>🔗</span>
-  SHARE THIS FACT-CHECK
-</button>
-
-<button
-  onClick={async () => {
-    const shareText = `🎯 Fact-Check Results: ${result.verdict}
-    
+        onClick={async () => {
+          const shareText = `🎯 Fact-Check Results: ${result.verdict}
 
 📊 Bottom Line: ${result.bottomLine}
 
@@ -967,7 +796,7 @@ Fact-checked with Signal vs Noise AI
           } else {
             try {
               await navigator.clipboard.writeText(shareText);
-              const btn = e.currentTarget;
+              const btn = event.currentTarget;
               const originalText = btn.innerHTML;
               btn.innerHTML = '<span style="font-size:11px">✓</span> COPIED TO CLIPBOARD';
               btn.style.color = '#00C851';
