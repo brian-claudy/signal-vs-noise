@@ -12,7 +12,7 @@ export async function generateMetadata({ params }) {
   
   if (!data) return { title: 'Fact-Check Not Found' };
   
-  const checkData = JSON.parse(data);
+  const checkData = typeof data === 'string' ? JSON.parse(data) : data;
   return {
     title: `Fact-Check: ${checkData.result.verdict} - Signal vs Noise`,
     description: checkData.result.summary || 'AI-powered fact-check with sources',
