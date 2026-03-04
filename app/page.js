@@ -1320,7 +1320,7 @@ export default function Home() {
                       <>Free tier: <span style={{ color: usageCount >= 2 ? "#FF5252" : "#64B5F6", fontWeight: 700 }}>{usageCount}/2</span> used today</>
                     )}
                   </div>
-                  
+                  <a
                     href="https://buy.stripe.com/3cs5otcKC9fP5fG6os"
                     target="_blank"
                     rel="noopener noreferrer"
