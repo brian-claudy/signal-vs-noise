@@ -1,7 +1,30 @@
 'use client';
+import { Analytics } from '@vercel/analytics/react';
+import { Bebas_Neue, DM_Sans, JetBrains_Mono } from 'next/font/google';
+
+const bebasNeue = Bebas_Neue({ 
+  weight: '400',
+  subsets: ['latin'],
+  display: 'optional', // This prevents flash!
+  fallback: ['system-ui', 'arial'],
+});
+const dmSans = DM_Sans({ 
+  weight: ['300', '400', '500', '600'],
+  subsets: ['latin'],
+  display: 'optional', // This prevents flash!
+  fallback: ['system-ui', 'arial'],
+});
+
+const jetBrainsMono = JetBrains_Mono({ 
+  weight: ['400', '700'],
+  subsets: ['latin'],
+  display: 'optional', // This prevents flash!
+  fallback: ['Courier New', 'monospace'],
+});
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 
-// ── Haiku triage prompt: fast initial scan + escalation decision ─────────────
+// ── Haiku triage prompt ─────────────────────────────────────────────────────
 const HAIKU_TRIAGE_PROMPT = `You are a fact-check triage analyst. Your job is to do a quick initial analysis of a social media claim and decide whether it needs deeper investigation by a more powerful model.
 
 STEP 1 — Use web_search (1-2 searches max) to get basic context on the claim.
@@ -17,31 +40,56 @@ ESCALATION RULES — set escalate=true if ANY of the following apply:
 - Conspiracy theories or coordinated narratives
 - Your confidence is below 85%
 - Anything that feels borderline, nuanced, or high-stakes
+- Search results are contradictory or inconclusive (should escalate to deeper analysis)
 When in doubt — ESCALATE. It is always better to over-escalate than miss something.
 
-CRITICAL OUTPUT RULES:
-- Respond ONLY with valid JSON. No prose. No markdown fences.
-- Keep all strings under 200 characters.
-- No line breaks or special characters inside string values.
+ANTI-HALLUCINATION RULES:
+- Base your assessment only on actual search results
+- If you cannot determine truth from searches, set confidence low and escalate
+- Never invent facts to support your triage decision
 
-Required JSON (output this and nothing else):
+CRITICAL: You MUST respond with ONLY valid JSON. Even if the claim is obviously true or false, you MUST still return JSON. No exceptions. No prose. No explanations. ONLY the JSON object below.
+
+Required JSON format:
 {"escalate":true|false,"escalateReason":"One sentence reason if escalating, empty string if not","initialConfidence":0-100,"claimCategories":["category1","category2"],"quickSummary":"One sentence description of what this post claims"}`;
 
-// ── Full analysis prompt used by both Haiku (simple) and Sonnet (escalated) ──
+// ── Full analysis prompt ────────────────────────────────────────────────────
 const ANALYSIS_PROMPT = `You are a world-class fact-checker and misinformation analyst with access to real-time web search. Analyze social media claims with rigorous, evidence-based reasoning.
 
+CRITICAL ANTI-HALLUCINATION RULES:
+- You MUST base EVERY factual claim on actual search results you retrieved
+- If you cannot find evidence in your search results, you MUST use verdict "UNVERIFIABLE"
+- NEVER make up facts, statistics, dates, or quotes - only cite what you actually found
+- All citations MUST be real URLs from your actual search results
+- If a search returns no relevant results, say so explicitly - do NOT pretend you found something
+- When uncertain, use lower confidence scores and "UNVERIFIABLE" verdict
+
 PROCESS:
-1. MULTI-ANGLE SEARCH STRATEGY (run 4-6 searches):
-   a) General search: broad query about the core claim
-   b) Fact-check database search: "site:snopes.com [claim]" OR "site:politifact.com [claim]" OR "site:factcheck.org [claim]" OR "site:reuters.com/fact-check [claim]"
-   c) Primary source search: look for original documents, official statements, or direct evidence
-   d) Counter-narrative search: search for rebuttals or opposing viewpoints
-   e) Recent news search: "[claim] news [current month/year]" to find latest coverage
-   f) If claim involves a named person/org: search their official website or verified social media
+1. MULTI-ANGLE FACT-CHECK SEARCH STRATEGY (run 5-8 searches in this order):
+   a) PRIMARY FACT-CHECK DATABASES (run these FIRST - highest priority):
+      - Search 1: "site:snopes.com [claim]"
+      - Search 2: "site:politifact.com [claim]" 
+      - Search 3: "site:factcheck.org [claim]"
+      - Search 4: "site:reuters.com/fact-check [claim]"
+      - Search 5: "site:apnews.com/ap-fact-check [claim]"
+   b) If no results from fact-check sites, then run general searches:
+      - Broad search: general query about the core claim
+      - Primary source search: look for original documents, official statements, direct evidence
+      - Counter-narrative search: search for rebuttals or opposing viewpoints
+      - Recent news search: "[claim] news [current month/year]" to find latest coverage
+   c) Named person/org: search their official website or verified social media
 
 2. After searching, identify: (a) each individual factual claim, (b) the structural manipulation tactic if any, (c) conspiracy hashtags or loaded language used, (d) whether fact-check databases have already verified this claim.
 
-3. Output your final verdict as JSON only.
+3. EVIDENCE REQUIREMENT: For EACH claim in your "claims" array, you MUST have found actual evidence in your search results. If you did not find evidence, mark that claim as "UNVERIFIABLE" and explain what you could not verify.
+
+4. Output your final verdict as JSON only.
+
+VERDICT GUIDELINES:
+- Use "UNVERIFIABLE" when: search results are inconclusive, contradictory, or non-existent
+- Use "FALSE" only when: you have clear evidence disproving the claim
+- Use "TRUE" or "FACT" only when: you have multiple reliable sources confirming it
+- When in doubt between FALSE and UNVERIFIABLE, choose UNVERIFIABLE
 
 CRITICAL OUTPUT RULES:
 - Respond ONLY with a single valid JSON object. No prose before or after. No markdown fences.
@@ -50,73 +98,104 @@ CRITICAL OUTPUT RULES:
 - Limit "redFlags" array to a maximum of 6 items. Include: conspiracy hashtags used, named manipulation tactics (e.g. "real facts strung together to imply fabricated connection"), and loaded/emotional language.
 - Never use line breaks or special characters inside string values.
 - Do not use single quotes inside strings — use double quotes only.
-- "citations" must be an array of objects with "title", "url", and optionally "cited_text" and "page_age" from your actual search results.
+- "citations" must be an array of objects with "title", "url", and optionally "cited_text" and "page_age" from your actual search results - ONLY include URLs you actually retrieved.
 - When web search returns results, extract the "cited_text" field (the specific quote) and "page_age" field (when source was updated) if available.
 
 Required JSON structure (output this and nothing else after searching):
-{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"One sentence verdict.","claims":[{"claim":"Specific claim","status":"TRUE|FALSE|MISLEADING|UNVERIFIABLE","explanation":"Evidence-based explanation under 200 chars."}],"context":"Key background a reader needs to know, under 220 chars.","redFlags":["Conspiracy hashtag: #example","Tactic: real facts used to imply fabricated connection","Loaded language: emotionally charged phrasing"],"citations":[{"title":"Source name or article title","url":"https://...","cited_text":"Direct quote from source if available","page_age":"Last updated date if available"}],"factCheckMatch":"Name of fact-check site (Snopes, PolitiFact, etc.) if a matching fact-check was found, empty string if not","bottomLine":"Plain English takeaway under 220 chars."}
+{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"One sentence verdict.","claims":[{"claim":"Specific claim","status":"TRUE|FALSE|MISLEADING|UNVERIFIABLE","explanation":"Evidence-based explanation citing actual search results, under 200 chars."}],"context":"Key background a reader needs to know, under 220 chars.","redFlags":["Conspiracy hashtag: #example","Tactic: real facts used to imply fabricated connection","Loaded language: emotionally charged phrasing"],"citations":[{"title":"Source name or article title","url":"https://...","cited_text":"Direct quote from source if available","page_age":"Last updated date if available"}],"factCheckMatch":"Name of fact-check site (Snopes, PolitiFact, etc.) if a matching fact-check was found, empty string if not","bottomLine":"Plain English takeaway under 220 chars."}
 
-Be direct and specific. Name exact tactics. Call out hashtags. Base everything on your actual search findings.`;
+Be direct and specific. Name exact tactics. Call out hashtags. Base everything on your actual search findings. If you cannot verify something, say so clearly.`;
 
-const DEMO_CLAIM = "Breaking: The CDC just admitted that 90% of vaccinated people have severe side effects. Mainstream media is hiding this!";
-
-// ── Quick Check mode (Haiku-only, fast, less detailed) ────────────────────────
+// ── Quick Check prompt ──────────────────────────────────────────────────────
 const QUICK_CHECK_PROMPT = `You are a fast fact-checker. Quickly assess this claim with 1-2 web searches.
+
+CRITICAL ANTI-HALLUCINATION RULES:
+- Only cite facts you actually found in your search results
+- If searches return no clear evidence, use verdict "UNVERIFIABLE"
+- NEVER invent statistics, dates, or quotes
+- All citations must be real URLs from your actual searches
 
 PROCESS:
 1. Run 1-2 targeted searches to verify the core claim
-2. Output a quick verdict as JSON
+2. If searches are inconclusive or contradictory, use "UNVERIFIABLE"
+3. Output a quick verdict as JSON
 
 CRITICAL OUTPUT RULES:
 - Respond ONLY with valid JSON. No prose. No markdown.
 - Keep all strings under 150 characters.
+- Only include URLs you actually retrieved in searches.
 
 Required JSON (output this and nothing else):
-{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"One sentence verdict under 150 chars.","bottomLine":"Quick takeaway under 150 chars.","citations":[{"title":"Source","url":"https://..."}]}`;
+{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"One sentence verdict under 150 chars based on actual search results.","bottomLine":"Quick takeaway under 150 chars.","citations":[{"title":"Source","url":"https://..."}]}`;
+
+// ── Deep Research prompt ────────────────────────────────────────────────────
+const DEEP_RESEARCH_PROMPT = `You are an elite fact-checking investigative researcher conducting deep analysis of misinformation claims. This is a comprehensive research task requiring 10-15 searches.
+
+CRITICAL ANTI-HALLUCINATION RULES:
+- Base EVERY factual claim on actual search results you retrieved
+- If you cannot find evidence in searches, you MUST use verdict "UNVERIFIABLE"
+- NEVER make up facts, statistics, dates, or quotes
+- All citations MUST be real URLs from your actual search results
+- If search returns no relevant results, say so explicitly
+
+DEEP RESEARCH PROCESS (10-15 searches required):
+1. COMPREHENSIVE FACT-CHECK DATABASE SWEEP (5-7 searches):
+   a) Search ALL major fact-check sites individually:
+      - "site:snopes.com [claim]"
+      - "site:politifact.com [claim]"
+      - "site:factcheck.org [claim]"
+      - "site:reuters.com/fact-check [claim]"
+      - "site:apnews.com/ap-fact-check [claim]"
+      - "site:fullfact.org [claim]" (UK)
+      - "site:afp.com/factcheck [claim]" (Global)
+   
+2. PRIMARY SOURCE VERIFICATION (2-3 searches):
+   - Search for original documents, official statements, scientific papers
+   - Look for government data, academic research, verified reports
+   - Find direct evidence rather than secondary reporting
+
+3. COUNTER-NARRATIVE ANALYSIS (2-3 searches):
+   - Search for opposing viewpoints and rebuttals
+   - Look for expert critiques or debunking
+   - Find credible challenges to the claim
+
+4. TEMPORAL ANALYSIS (1-2 searches):
+   - Search claim with date ranges to track evolution
+   - Look for how claim has changed over time
+   - Find when claim first appeared
+
+5. EXPERT CONSULTATION (1-2 searches):
+   - Search for expert opinions from relevant fields
+   - Look for academic or professional analysis
+   - Find domain-specific expertise
+
+After all searches, provide comprehensive analysis identifying:
+- All factual claims with evidence assessment
+- Manipulation tactics used (if any)
+- Evolution of the claim over time
+- Expert consensus (if exists)
+- Conflicting evidence (if found)
+
+CRITICAL OUTPUT RULES:
+- Respond ONLY with valid JSON. No prose before or after. No markdown.
+- Keep ALL string values under 250 characters each
+- Limit "claims" array to maximum 8 items (cover ALL significant claims)
+- Limit "redFlags" array to maximum 8 items
+- Never use line breaks inside string values
+- "citations" must be from your ACTUAL search results only
+
+Required JSON structure:
+{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"Comprehensive verdict based on deep research.","claims":[{"claim":"Specific claim","status":"TRUE|FALSE|MISLEADING|UNVERIFIABLE","explanation":"Detailed evidence-based explanation citing sources, under 250 chars."}],"context":"Critical background from deep research, under 250 chars.","redFlags":["Specific manipulation tactic or red flag identified"],"citations":[{"title":"Source name","url":"https://...","cited_text":"Direct quote if available","page_age":"Last updated if available"}],"factCheckMatch":"Name of fact-check site if matching fact-check found, empty string if not","bottomLine":"Comprehensive takeaway from deep research, under 250 chars.","researchDepth":"Number of searches conducted and key insights discovered"}`;
+
+const DEMO_CLAIM = "Breaking: The CDC just admitted that 90% of vaccinated people have severe side effects. Mainstream media is hiding this!";
 
 const verdictConfig = {
-  "FACT": { 
-    color: "#00C851", 
-    bg: "rgba(0, 200, 81, 0.12)", 
-    border: "rgba(0, 200, 81, 0.4)",
-    icon: "✓",
-    label: "VERIFIED FACT"
-  },
-  "MOSTLY FACT": { 
-    color: "#7BC67E", 
-    bg: "rgba(123, 198, 126, 0.12)", 
-    border: "rgba(123, 198, 126, 0.4)",
-    icon: "◑",
-    label: "MOSTLY ACCURATE"
-  },
-  "MISLEADING": { 
-    color: "#FFB300", 
-    bg: "rgba(255, 179, 0, 0.12)", 
-    border: "rgba(255, 179, 0, 0.4)",
-    icon: "⚠",
-    label: "MISLEADING"
-  },
-  "MOSTLY FALSE": { 
-    color: "#FF7043", 
-    bg: "rgba(255, 112, 67, 0.12)", 
-    border: "rgba(255, 112, 67, 0.4)",
-    icon: "✕",
-    label: "MOSTLY FALSE"
-  },
-  "FALSE": { 
-    color: "#FF1744", 
-    bg: "rgba(255, 23, 68, 0.12)", 
-    border: "rgba(255, 23, 68, 0.4)",
-    icon: "✕",
-    label: "FALSE"
-  },
-  "UNVERIFIABLE": { 
-    color: "#90A4AE", 
-    bg: "rgba(144, 164, 174, 0.12)", 
-    border: "rgba(144, 164, 174, 0.4)",
-    icon: "?",
-    label: "UNVERIFIABLE"
-  }
+  "FACT": { color: "#00C851", bg: "rgba(0, 200, 81, 0.12)", border: "rgba(0, 200, 81, 0.4)", icon: "✓", label: "VERIFIED FACT" },
+  "MOSTLY FACT": { color: "#7BC67E", bg: "rgba(123, 198, 126, 0.12)", border: "rgba(123, 198, 126, 0.4)", icon: "◑", label: "MOSTLY ACCURATE" },
+  "MISLEADING": { color: "#FFB300", bg: "rgba(255, 179, 0, 0.12)", border: "rgba(255, 179, 0, 0.4)", icon: "⚠", label: "MISLEADING" },
+  "MOSTLY FALSE": { color: "#FF7043", bg: "rgba(255, 112, 67, 0.12)", border: "rgba(255, 112, 67, 0.4)", icon: "✕", label: "MOSTLY FALSE" },
+  "FALSE": { color: "#FF1744", bg: "rgba(255, 23, 68, 0.12)", border: "rgba(255, 23, 68, 0.4)", icon: "✕", label: "FALSE" },
+  "UNVERIFIABLE": { color: "#90A4AE", bg: "rgba(144, 164, 174, 0.12)", border: "rgba(144, 164, 174, 0.4)", icon: "?", label: "UNVERIFIABLE" }
 };
 
 const claimStatusConfig = {
@@ -176,12 +255,12 @@ function ClaimCard({ claim, index }) {
         <div style={{ flex: 1 }}>
           <p style={{ margin: 0, fontSize: 14.5, color: "#E8E8E8", lineHeight: 1.5 }}>{claim.claim}</p>
           {expanded && (
-            <p style={{ margin: "8px 0 0", fontSize: 13, color: "#B0B0B0", lineHeight: 1.6, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 8 }}>
+            <p style={{ margin: "8px 0 0", fontSize: 16, color: "#B0B0B0", lineHeight: 1.6, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 8 }}>
               {claim.explanation}
             </p>
           )}
         </div>
-        <span style={{ color: "#555", fontSize: 12, flexShrink: 0, marginTop: 2 }}>
+        <span style={{ color: "#E0E0E0", fontSize: 12, flexShrink: 0, marginTop: 2 }}>
           {expanded ? "▲" : "▼"}
         </span>
       </div>
@@ -266,20 +345,15 @@ function generateReport(result, urlInput, textInput, hasImage) {
 </head>
 <body>
 <div class="page">
-  <!-- Header -->
   <div style="background:${vColor};padding:22px 28px 18px;color:white;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
-        <div style="font-size:22px;font-weight:900;letter-spacing:2px;">SPITZY FACT CHECK</div>
-        <div style="font-size:12px;opacity:0.85;margin-top:3px;">Spitzy Fact Check Report</div>
+        <div style="font-size:22px;font-weight:900;letter-spacing:2px;">SIGNAL VS NOISE FACT CHECK</div>
       </div>
       <div style="text-align:right;font-size:11px;opacity:0.8;">${dateStr}</div>
     </div>
   </div>
-
   <div style="padding:24px 28px;">
-
-    <!-- Verdict -->
     <div style="background:${vColor}18;border:1.5px solid ${vColor}55;border-radius:10px;padding:18px 20px;margin-bottom:18px;">
       <div style="font-size:10px;color:${vColor};font-weight:700;letter-spacing:2px;margin-bottom:4px;">VERDICT</div>
       <div style="font-size:26px;font-weight:900;color:${vColor};letter-spacing:1px;">${vLabel}</div>
@@ -294,66 +368,48 @@ function generateReport(result, urlInput, textInput, hasImage) {
       <p style="font-size:14px;color:#333;font-style:italic;margin-top:8px;">"${result.summary || ""}"</p>
       ${modelBadgeHtml}
     </div>
-
-    <!-- Bottom Line -->
     <div style="background:#fafafa;border:1px solid #e8e8e8;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-size:10px;color:#888;font-weight:700;letter-spacing:2px;margin-bottom:6px;">BOTTOM LINE</div>
       <p style="font-size:13px;color:#444;line-height:1.6;">${result.bottomLine || ""}</p>
     </div>
-
     ${urlInput || textInput || hasImage ? `
-    <!-- Input Provided -->
     <div style="background:#fafafa;border:1px solid #e8e8e8;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-size:10px;color:#888;font-weight:700;letter-spacing:2px;margin-bottom:6px;">INPUT PROVIDED</div>
       ${urlInput ? `<p style="font-size:11px;color:#999;margin:0 0 6px;"><strong>URL:</strong> ${urlInput}</p>` : ""}
       ${textInput ? `<p style="font-size:12px;color:#666;line-height:1.6;word-break:break-word;margin:0;">${textInput.substring(0, 500)}${textInput.length > 500 ? "..." : ""}</p>` : ""}
       ${hasImage ? `<p style="font-size:11px;color:#999;margin:${textInput ? "6px" : "0"} 0 0;"><em>🖼 Image uploaded and analyzed</em></p>` : ""}
     </div>` : ""}
-
     ${claimsHtml ? `
-    <!-- Claims -->
     <div style="margin-bottom:16px;">
       <div style="font-size:10px;color:#888;font-weight:700;letter-spacing:2px;margin-bottom:10px;">CLAIMS ANALYZED</div>
       ${claimsHtml}
     </div>` : ""}
-
     ${result.context ? `
-    <!-- Context -->
     <div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-size:10px;color:#1565c0;font-weight:700;letter-spacing:2px;margin-bottom:6px;">CONTEXT</div>
       <p style="font-size:13px;color:#1a237e;line-height:1.6;">${result.context}</p>
     </div>` : ""}
-
     ${redFlagsHtml ? `
-    <!-- Red Flags -->
     <div style="background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
       <div style="font-size:10px;color:#c62828;font-weight:700;letter-spacing:2px;margin-bottom:8px;">RED FLAGS & MANIPULATION TACTICS</div>
       <ul style="padding-left:16px;">${redFlagsHtml}</ul>
     </div>` : ""}
-
     ${citationsHtml ? `
-    <!-- Citations -->
     <div style="margin-bottom:16px;">
       <div style="font-size:10px;color:#607d8b;font-weight:700;letter-spacing:2px;margin-bottom:8px;">SOURCES & CITATIONS</div>
       ${citationsHtml}
     </div>` : ""}
-
-    <!-- Print tip -->
     <div class="no-print" style="margin-top:20px;padding:12px 14px;background:#e8f5e9;border-radius:6px;font-size:11px;color:#2e7d32;text-align:center;">
       💡 To save as PDF: use your browser's <strong>File → Print → Save as PDF</strong>
     </div>
-
   </div>
-
-  <!-- Footer -->
   <div style="background:#f5f5f5;border-top:1px solid #e0e0e0;padding:12px 28px;text-align:center;">
-    <span style="font-size:10px;color:#aaa;letter-spacing:1px;">GENERATED BY SPITZY FACT CHECK · ${dateStr}</span>
+    <span style="font-size:10px;color:#aaa;letter-spacing:1px;">GENERATED BY SIGNAL VS NOISE FACT CHECK · ${dateStr}</span>
   </div>
 </div>
 </body>
 </html>`;
 
-  // Trigger download
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -364,7 +420,6 @@ function generateReport(result, urlInput, textInput, hasImage) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
-
 
 function ResultPanel({ result, urlInput, textInput, hasImage }) {
   const cfg = verdictConfig[result.verdict] || verdictConfig["UNVERIFIABLE"];
@@ -382,7 +437,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
 
   return (
     <div style={{ animation: "fadeSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-      {/* Verdict Hero */}
       <div style={{
         background: cfg.bg,
         border: `1px solid ${cfg.border}`,
@@ -410,7 +464,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
             {cfg.icon}
           </div>
           <div>
-            <div style={{ fontSize: 9, color: cfg.color, fontFamily: "var(--mono)", letterSpacing: 3 }}>
+            <div style={{ fontSize: 10, color: cfg.color, fontFamily: "var(--mono)", letterSpacing: 3 }}>
               VERDICT
             </div>
             <div style={{ 
@@ -433,7 +487,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         </p>
         <ConfidenceMeter value={result.confidence} />
 
-        {/* Model badge */}
         {result._modelInfo && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
             <span style={{
@@ -459,7 +512,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         )}
       </div>
 
-      {/* Bottom Line */}
       <div className="result-card" style={{
         background: "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
         border: "1px solid rgba(255,255,255,0.09)",
@@ -471,7 +523,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
           </div>
           {result.factCheckMatch && (
             <span style={{
-              fontSize: 9, fontFamily: "var(--mono)",
+              fontSize: 10, fontFamily: "var(--mono)",
               background: "rgba(100,181,246,0.12)",
               border: "1px solid rgba(100,181,246,0.25)",
               borderRadius: 20, padding: "3px 10px",
@@ -486,7 +538,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         </p>
       </div>
 
-      {/* Claims Breakdown */}
       {result.claims && result.claims.length > 0 && (
         <div style={{ marginBottom: 14, animation: "fadeUp 0.4s 0.2s ease both" }}>
           <div className="section-label" style={{ color: "#666" }}>
@@ -496,7 +547,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         </div>
       )}
 
-      {/* Context */}
       {result.context && (
         <div className="result-card" style={{
           background: "linear-gradient(145deg, rgba(100,181,246,0.07), rgba(100,181,246,0.03))",
@@ -511,7 +561,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         </div>
       )}
 
-      {/* Red Flags */}
       {result.redFlags && result.redFlags.length > 0 && (
         <div className="result-card" style={{
           background: "linear-gradient(145deg, rgba(255,23,68,0.08), rgba(255,23,68,0.03))",
@@ -550,7 +599,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         </div>
       )}
 
-      {/* Citations */}
       {result.citations && result.citations.length > 0 && (
         <div className="result-card" style={{
           background: "rgba(255,255,255,0.02)",
@@ -580,10 +628,10 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
                 onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.025)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; e.currentTarget.style.transform = "translateX(0)"; }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 9, color: "#37474F", fontFamily: "var(--mono)", flexShrink: 0, background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: 3 }}>
+                  <span style={{ fontSize: 10, color: "#37474F", fontFamily: "var(--mono)", flexShrink: 0, background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: 3 }}>
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span style={{ fontSize: 13, color: "#90A8B8", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 400 }}>
+                  <span style={{ fontSize: 16, color: "#90A8B8", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 400 }}>
                     {cite.title || cite.url}
                   </span>
                   <span style={{ fontSize: 12, color: "#455A64", flexShrink: 0 }}>↗</span>
@@ -603,7 +651,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
                 )}
                 {cite.page_age && (
                   <div style={{ 
-                    fontSize: 9, 
+                    fontSize: 10, 
                     color: "#455A64", 
                     fontFamily: "var(--mono)",
                     paddingLeft: 30
@@ -616,7 +664,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
           </div>
         </div>
       )}
-      {/* Export Button */}
+
       <button
         onClick={handleExport}
         disabled={exporting}
@@ -658,10 +706,246 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         )}
       </button>
 
-      {/* Share Results - Native share on mobile, clipboard on desktop */}
+        <button
+        onClick={async (e) => {
+          console.log('Share button clicked!');
+          try {
+            console.log('Calling /api/save-check...');
+            
+            const response = await fetch('/api/save-check', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                result, 
+                urlInput, 
+                textInput, 
+                hasImage 
+              })
+            });
+            
+            console.log('Response status:', response.status);
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('API Error:', errorText);
+              throw new Error('Failed to save');
+            }
+            
+            const data = await response.json();
+            console.log('Got ID:', data.id);
+            
+            const shareUrl = `https://signalnoise.tech/check/${data.id}`;
+            console.log('Share URL:', shareUrl);
+            
+            await navigator.clipboard.writeText(shareUrl);
+            console.log('Copied to clipboard!');
+            
+            const btn = e.currentTarget;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span style="font-size:11px">✓</span> LINK COPIED!';
+            btn.style.background = 'rgba(0,200,81,0.12)';
+            btn.style.borderColor = 'rgba(0,200,81,0.3)';
+            btn.style.color = '#00C851';
+            
+            setTimeout(() => {
+              btn.innerHTML = originalText;
+              btn.style.background = 'rgba(255,255,255,0.03)';
+              btn.style.borderColor = 'rgba(255,255,255,0.1)';
+              btn.style.color = '#607D8B';
+            }, 3000);
+          } catch (err) {
+            console.error('Share error:', err);
+            alert('Failed to create share link. Check console.');
+          }
+        }}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+          width: "100%", marginTop: 10,
+          padding: "14px 20px",
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: 10,
+          color: "#607D8B",
+          cursor: "pointer",
+          fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 2.5,
+          transition: "all 0.2s",
+        }}
+        onMouseEnter={e => { 
+          e.currentTarget.style.background = "rgba(255,255,255,0.07)"; 
+          e.currentTarget.style.color = "#90A4AE"; 
+          e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)";
+          e.currentTarget.style.transform = "translateY(-1px)";
+        }}
+        onMouseLeave={e => { 
+          e.currentTarget.style.background = "rgba(255,255,255,0.03)"; 
+          e.currentTarget.style.color = "#607D8B"; 
+          e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+          e.currentTarget.style.transform = "translateY(0)";
+        }}
+      >
+        <span style={{ fontSize: 14, opacity: 0.6 }}>🔗</span>
+        SHARE THIS FACT-CHECK
+      </button>
+          
       <button
         onClick={async () => {
-          const shareText = `🎯 Fact-Check Results: ${result.verdict}
+          try {
+            // Save fact-check to database
+            const response = await fetch('/api/save-check', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                result, 
+                urlInput, 
+                textInput, 
+                hasImage 
+              })
+            });
+            
+            const { id } = await response.json();
+            const shareUrl = `https://signalnoise.tech/check/${id}`;
+            
+            // Copy to clipboard
+            await navigator.clipboard.writeText(shareUrl);
+            
+            // Show success feedback
+            const btn = event.currentTarget;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span style="font-size:11px">✓</span> LINK COPIED!';
+            btn.style.background = 'rgba(0,200,81,0.12)';
+            btn.style.borderColor = 'rgba(0,200,81,0.3)';
+            btn.style.color = '#00C851';
+            
+            setTimeout(() => {
+              btn.innerHTML = originalText;
+              btn.style.background = 'rgba(255,255,255,0.03)';
+              btn.style.borderColor = 'rgba(255,255,255,0.1)';
+              btn.style.color = '#607D8B';
+            }, 3000);
+          } catch (err) {
+            alert('Failed to create share link. Please try again.');
+          }
+        }}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+          width: "100%", marginTop: 10,
+          padding: "14px 20px",
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: 10,
+          color: "#607D8B",
+          cursor: "pointer",
+          fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 2.5,
+          transition: "all 0.2s",
+        }}
+        onMouseEnter={e => { 
+          e.currentTarget.style.background = "rgba(255,255,255,0.07)"; 
+          e.currentTarget.style.color = "#90A4AE"; 
+          e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)";
+          e.currentTarget.style.transform = "translateY(-1px)";
+        }}
+        onMouseLeave={e => { 
+          e.currentTarget.style.background = "rgba(255,255,255,0.03)"; 
+          e.currentTarget.style.color = "#607D8B"; 
+          e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+          e.currentTarget.style.transform = "translateY(0)";
+        }}
+      >
+        <span style={{ fontSize: 14, opacity: 0.6 }}>🔗</span>
+        SHARE THIS FACT-CHECK
+      </button>
+      <button
+        onClick={async (e) => {
+  console.log('Share button clicked!');
+  try {
+    console.log('Calling /api/save-check with data:', { 
+      hasResult: !!result, 
+      hasUrlInput: !!urlInput, 
+      hasTextInput: !!textInput, 
+      hasImage 
+    });
+    
+    const response = await fetch('/api/save-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        result, 
+        urlInput, 
+        textInput, 
+        hasImage 
+      })
+    });
+    
+    console.log('Response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API returned error:', errorText);
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Got response data:', data);
+    
+    if (!data.id) {
+      throw new Error('No ID in response');
+    }
+    
+    const shareUrl = `https://signalnoise.tech/check/${data.id}`;
+    console.log('Share URL created:', shareUrl);
+    
+    await navigator.clipboard.writeText(shareUrl);
+    console.log('Copied to clipboard successfully!');
+    
+    const btn = e.currentTarget;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span style="font-size:11px">✓</span> LINK COPIED!';
+    btn.style.background = 'rgba(0,200,81,0.12)';
+    btn.style.borderColor = 'rgba(0,200,81,0.3)';
+    btn.style.color = '#00C851';
+    
+    setTimeout(() => {
+      btn.innerHTML = originalText;
+      btn.style.background = 'rgba(255,255,255,0.03)';
+      btn.style.borderColor = 'rgba(255,255,255,0.1)';
+      btn.style.color = '#607D8B';
+    }, 3000);
+  } catch (err) {
+    console.error('SHARE ERROR:', err);
+    console.error('Error message:', err.message);
+    console.error('Error stack:', err.stack);
+    alert(`Failed: ${err.message}`);
+  }
+}}
+style={{
+  display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+  width: "100%", marginTop: 10,
+  padding: "14px 20px",
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 10,
+  color: "#607D8B",
+  cursor: "pointer",
+  fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 2.5,
+  transition: "all 0.2s",
+}}
+onMouseEnter={e => { 
+  e.currentTarget.style.background = "rgba(255,255,255,0.07)"; 
+  e.currentTarget.style.color = "#90A4AE"; 
+}}
+onMouseLeave={e => { 
+  e.currentTarget.style.background = "rgba(255,255,255,0.03)"; 
+  e.currentTarget.style.color = "#607D8B"; 
+}}
+>
+  <span style={{ fontSize: 14, opacity: 0.6 }}>🔗</span>
+  SHARE THIS FACT-CHECK
+</button>
+
+<button
+  onClick={async () => {
+    const shareText = `🎯 Fact-Check Results: ${result.verdict}
+    
 
 📊 Bottom Line: ${result.bottomLine}
 
@@ -670,8 +954,6 @@ ${result.claims.slice(0, 3).map((c, i) => `${i+1}. ${c.status}: ${c.claim}`).joi
 
 Fact-checked with Signal vs Noise AI
 `;
-
-          // Try native share first (mobile), fallback to clipboard (desktop)
           if (navigator.share) {
             try {
               await navigator.share({
@@ -683,11 +965,9 @@ Fact-checked with Signal vs Noise AI
               if (err.name !== 'AbortError') console.log('Share failed:', err);
             }
           } else {
-            // Desktop fallback: copy formatted text to clipboard
             try {
               await navigator.clipboard.writeText(shareText);
-              // Show success feedback
-              const btn = event.currentTarget;
+              const btn = e.currentTarget;
               const originalText = btn.innerHTML;
               btn.innerHTML = '<span style="font-size:11px">✓</span> COPIED TO CLIPBOARD';
               btn.style.color = '#00C851';
@@ -709,7 +989,7 @@ Fact-checked with Signal vs Noise AI
           borderRadius: 8,
           color: "#546E7A",
           cursor: "pointer",
-          fontFamily: "var(--mono)", fontSize: 9, letterSpacing: 2,
+          fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 2,
           transition: "all 0.15s"
         }}
         onMouseEnter={e => {
@@ -727,14 +1007,10 @@ Fact-checked with Signal vs Noise AI
         SHARE RESULTS
       </button>
 
-      {/* Tweet This Button */}
       <button
         onClick={() => {
-          // Get the claim text
           const claimText = textInput || urlInput || "Claim analyzed";
           const claimPreview = claimText.length > 100 ? claimText.substring(0, 100) + "..." : claimText;
-          
-          // Generate comprehensive tweet (under 280 chars with room for link)
           const tweetText = `CLAIM: "${claimPreview}"
 
 VERDICT: ${result.verdict}
@@ -744,8 +1020,6 @@ Full analysis with sources:
 👉 Export the HTML report for complete breakdown
 
 #FactCheck #SignalVsNoise`;
-          
-          // Open Twitter intent
           const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
           window.open(tweetUrl, '_blank', 'width=550,height=420');
         }}
@@ -758,7 +1032,7 @@ Full analysis with sources:
           borderRadius: 8,
           color: "rgba(29,161,242,0.7)",
           cursor: "pointer",
-          fontFamily: "var(--mono)", fontSize: 9, letterSpacing: 2,
+          fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 2,
           transition: "all 0.15s"
         }}
         onMouseEnter={e => {
@@ -792,59 +1066,47 @@ export default function FactChecker() {
   const [isFirstVisit, setIsFirstVisit] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
   const [quickCheckMode, setQuickCheckMode] = useState(false);
+  const [deepResearchMode, setDeepResearchMode] = useState(false);
   const [history, setHistory] = useState([]);
-const [visitorId, setVisitorId] = useState(null);
+  const [visitorId, setVisitorId] = useState(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoSuccess, setPromoSuccess] = useState("");
 
-useEffect(() => {
-  const script = document.createElement('script');
-  script.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js';
-  script.async = true;
-  script.onload = () => {
-    window.FingerprintJS.load().then(fp => fp.get()).then(result => {
-      setVisitorId(result.visitorId);
-    });
-  };
-  document.head.appendChild(script);
-}, []);
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js';
+    script.async = true;
+    script.onload = () => {
+      window.FingerprintJS.load().then(fp => fp.get()).then(result => {
+        setVisitorId(result.visitorId);
+      });
+    };
+    document.head.appendChild(script);
+  }, []);
+
   const textareaRef = useRef(null);
   const abortRef = useRef(null);
 
-  // ── Shared agentic fetch loop ─────────────────────────────────────────────
   const runAgenticLoop = async (systemPrompt, userMessage, model, controller, statusPrefix) => {
-    // userMessage can be a string OR an array of content blocks (for images)
     const messages = [{ role: "user", content: userMessage }];
     const tools = [{ 
       type: "web_search_20250305", 
       name: "web_search",
-      max_uses: 5,
-      allowed_domains: [
-        "snopes.com",
-        "politifact.com",
-        "factcheck.org",
-        "reuters.com",
-        "apnews.com",
-        "ap.org",
-        "bbc.com",
-        "nytimes.com",
-        "washingtonpost.com",
-        "npr.org",
-        "cnn.com",
-        "theguardian.com"
-      ]
+      max_uses: deepResearchMode ? 15 : 5
     }];
     let finalText = "";
-    const MAX_TURNS = 5;
+    const MAX_TURNS = deepResearchMode ? 12 : 5;
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const timeoutId = setTimeout(() => controller.abort(), 40000);
+      const timeoutId = setTimeout(() => controller.abort(), deepResearchMode ? 90000 : 40000);
       let response;
       try {
         response = await fetch("/api/fact-check", {
-  method: "POST",
-  headers: { 
-    "Content-Type": "application/json",
-    "x-fingerprint-id": visitorId || "anonymous"
-  },
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "x-fingerprint-id": visitorId || "anonymous"
+          },
           signal: controller.signal,
           body: JSON.stringify({ model, max_tokens: 2048, system: systemPrompt, tools, messages })
         });
@@ -858,14 +1120,25 @@ useEffect(() => {
       const toolUseBlocks = data.content.filter(b => b.type === "tool_use");
       if (data.stop_reason === "tool_use" && toolUseBlocks.length > 0) {
         setLoadingStatus(`${statusPrefix} (${turn + 1}/${MAX_TURNS})`);
-        const substexts = [
+        const substexts = deepResearchMode ? [
+          "Searching Snopes, PolitiFact, FactCheck.org",
+          "Searching Reuters fact-checks and AP fact-checks",
+          "Searching UK FullFact and AFP global fact-checks",
+          "Verifying with primary sources and official statements",
+          "Cross-referencing expert opinions and academic research",
+          "Analyzing counter-narratives and rebuttals",
+          "Tracking claim evolution over time",
+          "Gathering final verification sources",
+          "Synthesizing comprehensive analysis",
+          "Finalizing deep research report"
+        ] : [
           "Checking Snopes, PolitiFact, and FactCheck.org",
           "Finding primary sources and official statements",
           "Cross-referencing Reuters and AP fact-checks",
           "Searching for counter-narratives and rebuttals",
           "Verifying with recent news coverage"
         ];
-        setLoadingSubtext(substexts[turn] || "Gathering additional sources");
+        setLoadingSubtext(substexts[turn] || (deepResearchMode ? "Conducting additional research" : "Gathering additional sources"));
         messages.push({ role: "assistant", content: data.content });
         messages.push({ role: "user", content: toolUseBlocks.map(tb => ({ type: "tool_result", tool_use_id: tb.id, content: [] })) });
       } else {
@@ -876,13 +1149,45 @@ useEffect(() => {
     return finalText;
   };
 
-  // ── JSON parse helper ─────────────────────────────────────────────────────
   const parseJSON = (text) => {
-    let clean = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-    const first = clean.indexOf("{"), last = clean.lastIndexOf("}");
-    if (first !== -1 && last !== -1) clean = clean.slice(first, last + 1);
-    clean = clean.replace(/,\s*([}\]])/g, "$1").replace(/[ -]/g, " ");
-    return JSON.parse(clean);
+    try {
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+      }
+      
+      let clean = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      
+      const firstBrace = clean.indexOf('{');
+      if (firstBrace === -1) throw new Error('No JSON found in response');
+      
+      clean = clean.slice(firstBrace);
+      const lastBrace = clean.lastIndexOf('}');
+      if (lastBrace === -1) throw new Error('No closing brace found');
+      
+      clean = clean.slice(0, lastBrace + 1);
+      
+      const lines = clean.split('\n');
+      let jsonLines = [];
+      let inJson = false;
+      let braceCount = 0;
+      
+      for (const line of lines) {
+        for (const char of line) {
+          if (char === '{') braceCount++;
+          if (char === '}') braceCount--;
+        }
+        
+        if (line.includes('{')) inJson = true;
+        if (inJson) jsonLines.push(line);
+        if (braceCount === 0 && inJson) break;
+      }
+      
+      return JSON.parse(jsonLines.join('\n'));
+    } catch (e) {
+      console.error('JSON PARSE ERROR:', e, 'TEXT:', text.substring(0, 500));
+      throw new Error('Failed to parse fact-check result');
+    }
   };
 
   const isUrl = (str) => {
@@ -910,23 +1215,47 @@ useEffect(() => {
     setUploadedImage(null);
   };
 
+  const handlePromoCode = async () => {
+    if (!promoCode || !visitorId) return;
+    
+    try {
+      const response = await fetch('/api/promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: promoCode, visitorId })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setPromoSuccess(data.message);
+        setPromoCode("");
+        setError(null);
+        setTimeout(() => setPromoSuccess(""), 5000);
+      } else {
+        setError(data.error || "Invalid promo code");
+        setTimeout(() => setError(null), 3000);
+      }
+    } catch (err) {
+      setError("Failed to apply promo code");
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
   const handleCheck = async () => {
-    // At least one input required
     if (!urlInput.trim() && !textInput.trim() && !uploadedImage) return;
     
     setLoading(true);
-    setLoadingStatus("ANALYZING...");
+    setLoadingStatus(deepResearchMode ? "DEEP RESEARCH STARTING..." : "ANALYZING...");
     setError(null);
     setResult(null);
     setModelInfo(null);
 
     try {
-      // ── Build comprehensive user message from all available inputs ─────────
       let userMessage;
       let messageContent = [];
       let contextParts = [];
 
-      // 1. Process URL if provided
       if (urlInput.trim() && isUrl(urlInput.trim())) {
         const domain = urlInput.includes("instagram.com") ? "Instagram" :
                       urlInput.includes("twitter.com") || urlInput.includes("x.com") ? "Twitter/X" :
@@ -935,14 +1264,11 @@ useEffect(() => {
         contextParts.push(`URL: ${urlInput.trim()} (${domain} post)`);
       }
 
-      // 2. Add text claim if provided
       if (textInput.trim()) {
         contextParts.push(`Text claim: "${textInput.trim()}"`);
       }
 
-      // 3. Build final message based on what we have
       if (uploadedImage) {
-        // Image + optional text + optional URL
         messageContent.push({ type: "image", source: { type: "base64", media_type: uploadedImage.type, data: uploadedImage.data } });
         
         let imagePrompt = "Analyze this image for misinformation, fake data, manipulated content, or misleading visual claims.";
@@ -952,7 +1278,6 @@ useEffect(() => {
         messageContent.push({ type: "text", text: imagePrompt });
         userMessage = messageContent;
       } else {
-        // Text and/or URL only (no image)
         let prompt = "Please fact-check the following:\n\n";
         if (contextParts.length > 0) {
           prompt += contextParts.join("\n\n");
@@ -963,15 +1288,47 @@ useEffect(() => {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      // ── STEP 1: Haiku triage ───────────────────────────────────────────────
-      // Quick Check mode: skip triage, go straight to fast analysis
+      if (deepResearchMode) {
+        setLoadingStatus("DEEP RESEARCH MODE...");
+        setLoadingSubtext("Conducting comprehensive 10-15 search analysis (3-5 min)");
+        
+        const deepMessage = uploadedImage ? messageContent : userMessage;
+        
+        const deepResult = await runAgenticLoop(
+          DEEP_RESEARCH_PROMPT,
+          deepMessage,
+          "claude-sonnet-4-5-20250929",
+          controller,
+          "DEEP RESEARCH"
+        );
+
+        const parsed = parseJSON(deepResult);
+        parsed._modelInfo = { model: "Sonnet (Deep Research)", escalated: true, escalateReason: "Deep Research mode selected" };
+        setModelInfo(parsed._modelInfo);
+        setResult(parsed);
+        setHistory(prev => [{ 
+          urlInput: urlInput.trim(), 
+          textInput: textInput.trim(), 
+          hasImage: !!uploadedImage,
+          result: parsed, 
+          time: new Date() 
+        }, ...prev.slice(0, 4)]);
+        
+        if (isFirstVisit) {
+          setIsFirstVisit(false);
+          setTimeout(() => {
+            setShowCelebration(true);
+            setTimeout(() => setShowCelebration(false), 3000);
+          }, 400);
+        }
+        return;
+      }
+
       if (quickCheckMode) {
         setLoadingStatus("QUICK CHECK...");
         setLoadingSubtext("Running fast fact-check");
         
-        const quickMessage = uploadedImage
-          ? messageContent
-          : userMessage;
+        const quickMessage = uploadedImage ? messageContent : userMessage;
         
         const quickResult = await runAgenticLoop(
           QUICK_CHECK_PROMPT,
@@ -980,7 +1337,7 @@ useEffect(() => {
           controller,
           "CHECKING"
         );
-        
+
         const parsed = parseJSON(quickResult);
         parsed._modelInfo = { model: "haiku", escalated: false };
         setModelInfo(parsed._modelInfo);
@@ -1006,7 +1363,7 @@ useEffect(() => {
       setLoadingStatus("HAIKU SCANNING...");
       setLoadingSubtext("Reading claim and gathering context");
       const triageMessage = uploadedImage 
-        ? `Quick triage scan — the user uploaded an image${input.trim() ? " with context: " + input.trim() : ""}. Determine if this needs escalation.`
+        ? `Quick triage scan — the user uploaded an image${textInput.trim() ? " with context: " + textInput.trim() : ""}. Determine if this needs escalation.`
         : `Quick triage scan of this claim: ${typeof userMessage === 'string' ? userMessage : 'see content'}`;
 
       const triageText = await runAgenticLoop(
@@ -1023,10 +1380,9 @@ useEffect(() => {
       catch(e) { triage = { escalate: true, escalateReason: "Could not parse triage — defaulting to Sonnet", initialConfidence: 0 }; }
 
       const shouldEscalate = triage.escalate === true || (triage.initialConfidence ?? 100) < 85;
-      const finalModel = shouldEscalate ? "claude-sonnet-4-6-20250514" : "claude-haiku-4-5-20251001";
+      const finalModel = shouldEscalate ? "claude-sonnet-4-5-20250929" : "claude-haiku-4-5-20251001";
       const finalModelLabel = shouldEscalate ? "Sonnet" : "Haiku";
 
-      // ── STEP 2: Full analysis with chosen model ────────────────────────────
       if (shouldEscalate) {
         setLoadingStatus("ESCALATING TO SONNET...");
         setLoadingSubtext("Complex claim detected — using deeper analysis model");
@@ -1050,7 +1406,6 @@ useEffect(() => {
       try { parsed = parseJSON(analysisText); }
       catch(e) { throw new Error(`Response parsing failed: ${e.message}. Please try again.`); }
 
-      // Attach model metadata to result
       parsed._modelInfo = {
         model: finalModelLabel,
         escalated: shouldEscalate,
@@ -1068,7 +1423,6 @@ useEffect(() => {
         time: new Date() 
       }, ...prev.slice(0, 4)]);
 
-      // First check celebration
       if (isFirstVisit) {
         setIsFirstVisit(false);
         setTimeout(() => {
@@ -1078,6 +1432,7 @@ useEffect(() => {
       }
 
     } catch (err) {
+      console.log('FACT-CHECK ERROR:', err.message);
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
@@ -1105,14 +1460,11 @@ useEffect(() => {
     setTextInput(item.textInput || "");
     setResult(item.result);
     setError(null);
-    // Note: can't restore uploaded image from history
   };
 
-  return (
+return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&display=swap');
-
         :root {
           --red: #E53935;
           --red-bright: #FF1744;
@@ -1124,9 +1476,9 @@ useEffect(() => {
           --text: #E8E8E8;
           --text-muted: #666;
           --text-dim: #444;
-          --mono: 'JetBrains Mono', monospace;
-          --display: 'Bebas Neue', cursive;
-          --body: 'DM Sans', sans-serif;
+          --mono: ${jetBrainsMono.style.fontFamily}, monospace;
+          --display: ${bebasNeue.style.fontFamily}, cursive;
+          --body: ${dmSans.style.fontFamily}, sans-serif;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1138,7 +1490,6 @@ useEffect(() => {
           -webkit-font-smoothing: antialiased;
         }
 
-        /* ── Animations ── */
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(20px); }
           to   { opacity: 1; transform: translateY(0); }
@@ -1177,8 +1528,11 @@ useEffect(() => {
           from { opacity: 0; transform: translateX(-8px); }
           to   { opacity: 1; transform: translateX(0); }
         }
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
 
-        /* ── Field Labels ── */
         .field-label {
           display: flex;
           align-items: center;
@@ -1197,7 +1551,6 @@ useEffect(() => {
           font-size: 10px;
         }
 
-        /* ── Input fields ── */
         .input-area {
           background: rgba(255,255,255,0.03);
           border: 1px solid var(--border);
@@ -1219,7 +1572,6 @@ useEffect(() => {
         }
         .input-area::placeholder { color: #4a4a5a; }
 
-        /* ── Main CTA button ── */
         .check-btn {
           background: linear-gradient(135deg, #C62828 0%, #E53935 50%, #FF1744 100%);
           border: none;
@@ -1259,7 +1611,6 @@ useEffect(() => {
         }
         .check-btn:disabled::before { display: none; }
 
-        /* ── Result cards ── */
         .result-card {
           border-radius: 14px;
           padding: 18px 20px;
@@ -1276,7 +1627,6 @@ useEffect(() => {
           pointer-events: none;
         }
 
-        /* ── Section labels ── */
         .section-label {
           font-family: var(--mono);
           font-size: 9px;
@@ -1295,7 +1645,6 @@ useEffect(() => {
           opacity: 0.15;
         }
 
-        /* ── Claim cards ── */
         .claim-card {
           background: rgba(255,255,255,0.025);
           border: 1px solid rgba(255,255,255,0.06);
@@ -1308,7 +1657,6 @@ useEffect(() => {
         }
         .claim-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
 
-        /* ── History items ── */
         .history-item {
           background: var(--surface);
           border: 1px solid var(--border);
@@ -1324,12 +1672,11 @@ useEffect(() => {
           transform: translateX(3px);
         }
 
-        /* ── Scrollbar ── */
         ::-webkit-scrollbar { width: 3px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
       `}</style>
-      
+
       <div style={{
         minHeight: "100vh",
         background: "#080810",
@@ -1337,27 +1684,22 @@ useEffect(() => {
         position: "relative",
         overflow: "hidden"
       }}>
-        {/* Layered atmospheric background */}
         <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }}>
-          {/* Deep grid */}
           <div style={{
             position: "absolute", inset: 0,
             backgroundImage: "linear-gradient(rgba(229,57,53,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(229,57,53,0.04) 1px, transparent 1px)",
             backgroundSize: "60px 60px"
           }} />
-          {/* Red radial glow top-center */}
           <div style={{
             position: "absolute", top: -200, left: "50%", transform: "translateX(-50%)",
             width: 800, height: 600,
             background: "radial-gradient(ellipse, rgba(229,57,53,0.07) 0%, transparent 70%)",
           }} />
-          {/* Subtle bottom glow */}
           <div style={{
             position: "absolute", bottom: -100, right: "20%",
             width: 400, height: 400,
             background: "radial-gradient(ellipse, rgba(229,57,53,0.04) 0%, transparent 70%)",
           }} />
-          {/* Noise texture overlay */}
           <div style={{
             position: "absolute", inset: 0,
             backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E\")",
@@ -1368,9 +1710,7 @@ useEffect(() => {
         
         <div style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", padding: "40px 20px 80px" }}>
           
-          {/* Header */}
           <div style={{ textAlign: "center", marginBottom: 44, animation: "fadeUp 0.6s ease both" }}>
-            {/* Live badge */}
             <div style={{ 
               display: "inline-flex", alignItems: "center", gap: 8,
               background: "rgba(229,57,53,0.08)", 
@@ -1383,12 +1723,11 @@ useEffect(() => {
                 animation: "pulse 2s infinite",
                 boxShadow: "0 0 6px rgba(229,57,53,0.8)"
               }} />
-              <span style={{ fontSize: 9, color: "#EF5350", fontFamily: "var(--mono)", letterSpacing: 3, fontWeight: 700 }}>
+              <span style={{ fontSize: 10, color: "#EF5350", fontFamily: "var(--mono)", letterSpacing: 3, fontWeight: 700 }}>
                 HYBRID AI · LIVE WEB SEARCH
               </span>
             </div>
 
-            {/* Logo */}
             <h1 style={{
               fontFamily: "var(--display)",
               fontSize: "clamp(56px, 12vw, 96px)",
@@ -1427,7 +1766,7 @@ useEffect(() => {
               NOISE
             </h1>
             <p style={{ 
-              color: "#777", fontSize: 14, margin: 0, 
+              color: "#B0B0B0", fontSize: 14, margin: 0, 
               fontFamily: "var(--body)", letterSpacing: 0.5,
               fontWeight: 300
             }}>
@@ -1435,7 +1774,6 @@ useEffect(() => {
             </p>
           </div>
 
-          {/* Input Card */}
           <div style={{
             background: "linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)",
             border: "1px solid rgba(255,255,255,0.09)",
@@ -1446,21 +1784,19 @@ useEffect(() => {
             boxShadow: "0 24px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
             animation: "fadeUp 0.6s 0.1s ease both"
           }}>
-            {/* Card header */}
             <div style={{ 
               display: "flex", alignItems: "center", justifyContent: "space-between",
               marginBottom: 20, paddingBottom: 14,
               borderBottom: "1px solid rgba(255,255,255,0.06)"
             }}>
-              <span style={{ fontSize: 9, color: "#555", fontFamily: "var(--mono)", letterSpacing: 3 }}>
+              <span style={{ fontSize: 10, color: "#E0E0E0", fontFamily: "var(--mono)", letterSpacing: 3 }}>
                 FACT-CHECK INPUT
               </span>
-              <span style={{ fontSize: 9, color: "rgba(229,57,53,0.8)", fontFamily: "var(--mono)", letterSpacing: 2 }}>
+              <span style={{ fontSize: 10, color: "rgba(229,57,53,0.8)", fontFamily: "var(--mono)", letterSpacing: 2 }}>
                 MORE CONTEXT = BETTER RESULTS
               </span>
             </div>
 
-            {/* URL field */}
             <div style={{ marginBottom: 14 }}>
               <div className="field-label">
                 <span className="field-label-icon" style={{ background: "rgba(100,181,246,0.12)", color: "#64B5F6" }}>↗</span>
@@ -1477,7 +1813,6 @@ useEffect(() => {
               />
             </div>
 
-            {/* Text field */}
             <div style={{ marginBottom: 14 }}>
               <div className="field-label">
                 <span className="field-label-icon" style={{ background: "rgba(255,179,0,0.12)", color: "#FFB300" }}>⌨</span>
@@ -1495,7 +1830,6 @@ useEffect(() => {
               />
             </div>
 
-            {/* Image upload area */}
             <div style={{ marginBottom: 4 }}>
               <div className="field-label">
                 <span className="field-label-icon" style={{ background: "rgba(0,200,81,0.12)", color: "#00C851" }}>🖼</span>
@@ -1551,7 +1885,34 @@ useEffect(() => {
                   </button>
                 </div>
               ) : (
-                <button
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                    
+                    const file = e.dataTransfer.files?.[0];
+                    if (!file) return;
+                    if (!file.type.startsWith("image/")) {
+                      setError("Please upload an image file (PNG, JPG, etc.)");
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                      const base64 = evt.target.result.split(",")[1];
+                      setUploadedImage({ data: base64, type: file.type, name: file.name });
+                    };
+                    reader.readAsDataURL(file);
+                  }}
                   onClick={() => document.getElementById("imageUploadInput")?.click()}
                   style={{
                     width: "100%",
@@ -1584,7 +1945,7 @@ useEffect(() => {
                   <span style={{ fontSize: 22, opacity: 0.4 }}>⊕</span>
                   DRAG & DROP OR CLICK TO UPLOAD
                   <span style={{ fontSize: 8, letterSpacing: 1, opacity: 0.5 }}>PNG · JPG · WEBP · SCREENSHOTS</span>
-                </button>
+                </div>
               )}
             </div>
             <input 
@@ -1594,14 +1955,17 @@ useEffect(() => {
               onChange={handleImageUpload} 
               style={{ display: "none" }} 
             />
-            
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 11, color: "#666", fontFamily: "var(--mono)" }}>
                   ⌘ + ENTER to check
                 </span>
                 <button
-                  onClick={() => setQuickCheckMode(!quickCheckMode)}
+                  onClick={() => {
+                    setQuickCheckMode(!quickCheckMode);
+                    if (!quickCheckMode) setDeepResearchMode(false);
+                  }}
                   title={quickCheckMode ? "Quick Check: Fast mode (5 sec, less detailed)" : "Click for Quick Check mode (faster but less thorough)"}
                   style={{
                     background: quickCheckMode ? "rgba(100,181,246,0.12)" : "transparent",
@@ -1609,7 +1973,7 @@ useEffect(() => {
                     borderRadius: 6,
                     color: quickCheckMode ? "#64B5F6" : "#666",
                     cursor: "pointer",
-                    fontSize: 9,
+                    fontSize: 10,
                     padding: "4px 8px",
                     fontFamily: "var(--mono)",
                     letterSpacing: 1,
@@ -1620,16 +1984,39 @@ useEffect(() => {
                 >
                   ⚡ QUICK
                 </button>
-                {quickCheckMode && (
-                  <span style={{ fontSize: 9, color: "#64B5F6", fontFamily: "var(--mono)" }}>
-                    Fast mode: ~5 sec
+                <button
+                  onClick={() => {
+                    setDeepResearchMode(!deepResearchMode);
+                    if (!deepResearchMode) setQuickCheckMode(false);
+                  }}
+                  title={deepResearchMode ? "Deep Research: Comprehensive mode (3-5 min, 10-15 searches)" : "Click for Deep Research mode (comprehensive analysis)"}
+                  style={{
+                    background: deepResearchMode ? "rgba(156,39,176,0.12)" : "transparent",
+                    border: deepResearchMode ? "1px solid rgba(156,39,176,0.3)" : "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 6,
+                    color: deepResearchMode ? "#AB47BC" : "#666",
+                    cursor: "pointer",
+                    fontSize: 10,
+                    padding: "4px 8px",
+                    fontFamily: "var(--mono)",
+                    letterSpacing: 1,
+                    transition: "all 0.15s"
+                  }}
+                  onMouseEnter={e => { if (!deepResearchMode) e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }}
+                  onMouseLeave={e => { if (!deepResearchMode) e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
+                >
+                  🔬 DEEP
+                </button>
+                {(quickCheckMode || deepResearchMode) && (
+                  <span style={{ fontSize: 10, color: deepResearchMode ? "#AB47BC" : "#64B5F6", fontFamily: "var(--mono)" }}>
+                    {deepResearchMode ? "Deep mode: ~3-5 min" : "Quick mode: ~5 sec"}
                   </span>
                 )}
               </div>
               {(urlInput || textInput || uploadedImage) && (
                 <button 
                   onClick={() => { setUrlInput(""); setTextInput(""); clearImage(); setResult(null); setError(null); }}
-                  style={{ background: "none", border: "none", color: "#777", cursor: "pointer", fontSize: 12, fontFamily: "var(--mono)" }}
+                  style={{ background: "none", border: "none", color: "#B0B0B0", cursor: "pointer", fontSize: 12, fontFamily: "var(--mono)" }}
                 >
                   CLEAR ALL ✕
                 </button>
@@ -1649,7 +2036,7 @@ useEffect(() => {
                       {loadingStatus}
                     </span>
                     {loadingSubtext && (
-                      <span style={{ fontSize: 9, color: "#666", letterSpacing: 0.5, fontFamily: "var(--body)", fontWeight: 300 }}>
+                      <span style={{ fontSize: 10, color: "#666", letterSpacing: 0.5, fontFamily: "var(--body)", fontWeight: 300 }}>
                         {loadingSubtext}
                       </span>
                     )}
@@ -1706,7 +2093,6 @@ useEffect(() => {
             )}
           </div>
 
-          {/* Error */}
           {error && (
             <div style={{
               background: "rgba(255,23,68,0.08)",
@@ -1714,14 +2100,109 @@ useEffect(() => {
               borderRadius: 12,
               padding: "16px 20px",
               marginBottom: 24,
-              fontSize: 13,
+              fontSize: 16,
               color: "#EF9A9A"
             }}>
-              ⚠ {error}
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <span style={{ fontSize: 20 }}>⚠</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ marginBottom: 8 }}>{error}</div>
+                  
+                  {(error.includes('Free tier limit') || error.includes('Daily limit reached')) && (
+                    <>
+                      <div style={{ marginTop: 16, marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, color: "#FFB300", marginBottom: 8, fontFamily: "var(--mono)" }}>
+                          💡 Have a promo code? Enter it below:
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <input
+                            type="text"
+                            placeholder="Enter promo code..."
+                            value={promoCode}
+                            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && promoCode) {
+                                handlePromoCode();
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: "10px 14px",
+                              background: "rgba(255,255,255,0.05)",
+                              border: "1px solid rgba(255,255,255,0.15)",
+                              borderRadius: 8,
+                              color: "#FFFFFF",
+                              fontSize: 14,
+                              fontFamily: "var(--mono)",
+                              outline: "none"
+                            }}
+                          />
+                          <button
+                            onClick={handlePromoCode}
+                            disabled={!promoCode}
+                            style={{
+                              padding: "10px 20px",
+                              background: promoCode ? "rgba(255,179,0,0.2)" : "rgba(255,255,255,0.05)",
+                              border: `1px solid ${promoCode ? "rgba(255,179,0,0.4)" : "rgba(255,255,255,0.1)"}`,
+                              borderRadius: 8,
+                              color: promoCode ? "#FFB300" : "#666",
+                              cursor: promoCode ? "pointer" : "not-allowed",
+                              fontSize: 11,
+                              fontFamily: "var(--mono)",
+                              letterSpacing: 1,
+                              fontWeight: 600,
+                              transition: "all 0.2s"
+                            }}
+                          >
+                            APPLY
+                          </button>
+                        </div>
+                        {promoSuccess && (
+                          <div style={{ marginTop: 8, fontSize: 12, color: "#00C851", fontFamily: "var(--mono)" }}>
+                            ✓ {promoSuccess}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch('/api/checkout', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                priceId: 'price_1T45UJRQdqd4bJUlx4z2g256',
+                                userId: visitorId
+                              })
+                            });
+                            const { url } = await response.json();
+                            window.location.href = url;
+                          } catch (err) {
+                            alert('Failed to start checkout. Please try again.');
+                          }
+                        }}
+                        style={{
+                          padding: '12px 24px',
+                          background: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A6F 100%)',
+                          border: 'none',
+                          borderRadius: 8,
+                          color: '#FFFFFF',
+                          fontSize: 14,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(229,57,53,0.3)',
+                          width: '100%'
+                        }}
+                      >
+                        ⚡ Or Upgrade to Pro - $7/month for Unlimited
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* First check celebration */}
           {showCelebration && (
             <div style={{
               position: "fixed", top: "50%", left: "50%",
@@ -1759,15 +2240,14 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Results */}
           {result && (
             <div style={{ marginBottom: 32 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: "#555", fontFamily: "var(--mono)", letterSpacing: 2 }}>
+                <div style={{ fontSize: 11, color: "#E0E0E0", fontFamily: "var(--mono)", letterSpacing: 2 }}>
                   ANALYSIS RESULT
                 </div>
                 <button
-                  onClick={() => { setInput(""); setResult(null); setError(null); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                  onClick={() => { setUrlInput(""); setTextInput(""); clearImage(); setResult(null); setError(null); setTimeout(() => textareaRef.current?.focus(), 50); }}
                   style={{
                     background: "rgba(255,255,255,0.05)",
                     border: "1px solid rgba(255,255,255,0.12)",
@@ -1787,7 +2267,6 @@ useEffect(() => {
             </div>
           )}
 
-          {/* History */}
           {history.length > 0 && !loading && (
             <div>
               <div className="section-label" style={{ color: "#333", marginBottom: 10 }}>
@@ -1801,7 +2280,7 @@ useEffect(() => {
                       <span style={{ color: cfg.color, fontFamily: "var(--mono)", fontSize: 12, flexShrink: 0 }}>
                         {cfg.icon}
                       </span>
-                      <span style={{ fontSize: 13, color: "#999", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                      <span style={{ fontSize: 16, color: "#999", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                         {item.hasImage && "🖼 "}
                         {item.textInput ? item.textInput.substring(0, 60) : item.urlInput ? item.urlInput.substring(0, 60) : "Image analysis"}
                         {(item.textInput?.length > 60 || item.urlInput?.length > 60) ? "..." : ""}
@@ -1820,7 +2299,6 @@ useEffect(() => {
             </div>
           )}
           
-          {/* Footer note */}
           {!result && !loading && (
             <div style={{ textAlign: "center", marginTop: 48, paddingTop: 24, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
               <div style={{ 
@@ -1828,7 +2306,7 @@ useEffect(() => {
                 marginBottom: 12
               }}>
                 <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#E53935", opacity: 0.6 }} />
-                <span style={{ fontSize: 9, color: "#333", fontFamily: "var(--mono)", letterSpacing: 3 }}>POWERED BY CLAUDE AI</span>
+                <span style={{ fontSize: 10, color: "#333", fontFamily: "var(--mono)", letterSpacing: 3 }}>POWERED BY CLAUDE AI</span>
                 <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#E53935", opacity: 0.6 }} />
               </div>
               <p style={{ fontSize: 10, color: "#444455", fontFamily: "var(--mono)", lineHeight: 2, margin: 0 }}>
@@ -1839,6 +2317,7 @@ useEffect(() => {
           )}
         </div>
       </div>
+      <Analytics />
     </>
   );
 }
