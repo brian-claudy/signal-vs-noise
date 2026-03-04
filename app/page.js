@@ -786,7 +786,8 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         <span style={{ fontSize: 14, opacity: 0.6 }}>🔗</span>
         SHARE THIS FACT-CHECK
       </button>
-<button
+          
+      <button
         onClick={async () => {
           try {
             // Save fact-check to database
