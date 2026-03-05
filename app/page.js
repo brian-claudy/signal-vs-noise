@@ -760,69 +760,6 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
         <span style={{ fontSize: 14, opacity: 0.6 }}>🔗</span>
         SHARE THIS FACT-CHECK
       </button>
-      <button
-        onClick={async (e) => {
-          const shareText = `🎯 Fact-Check Results: ${result.verdict}
-
-📊 Bottom Line: ${result.bottomLine}
-
-${result.claims?.length > 0 ? `🔍 Key Claims:
-${result.claims.slice(0, 3).map((c, i) => `${i+1}. ${c.status}: ${c.claim}`).join('\n')}` : ''}
-
-Fact-checked with Signal vs Noise AI
-`;
-          if (navigator.share) {
-            try {
-              await navigator.share({
-                title: `Fact-Check: ${result.verdict}`,
-                text: shareText,
-                url: window.location.href
-              });
-            } catch (err) {
-              if (err.name !== 'AbortError') console.log('Share failed:', err);
-            }
-          } else {
-            try {
-              await navigator.clipboard.writeText(shareText);
-              const btn = e.currentTarget;
-              const originalText = btn.innerHTML;
-              btn.innerHTML = '<span style="font-size:11px">✓</span> COPIED TO CLIPBOARD';
-              btn.style.color = '#00C851';
-              setTimeout(() => {
-                btn.innerHTML = originalText;
-                btn.style.color = '#546E7A';
-              }, 2000);
-            } catch (err) {
-              alert('Could not copy to clipboard. Please try again.');
-            }
-          }
-        }}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          width: "100%", marginTop: 10,
-          padding: "11px 20px",
-          background: "transparent",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: 8,
-          color: "#546E7A",
-          cursor: "pointer",
-          fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 2,
-          transition: "all 0.15s"
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.background = "rgba(255,255,255,0.03)";
-          e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)";
-          e.currentTarget.style.color = "#78909C";
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.background = "transparent";
-          e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
-          e.currentTarget.style.color = "#546E7A";
-        }}
-      >
-        <span style={{ fontSize: 11 }}>↗</span>
-        SHARE RESULTS
-      </button>
 
       <button
         onClick={() => {
