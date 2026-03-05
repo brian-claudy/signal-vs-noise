@@ -1,32 +1,23 @@
 import { NextResponse } from 'next/server';
+import Anthropic from '@anthropic-ai/sdk';
 import { Redis } from '@upstash/redis';
 
-// CORS configuration - only allow requests from your domain
-const ALLOWED_ORIGINS = [
-  'https://signalnoise.tech',
-  'https://www.signalnoise.tech',
-  'https://signal-vs-noise-f8ju.vercel.app', // Keep Vercel preview URLs working
-];
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
 
-// Helper to check origin
-function isAllowedOrigin(origin) {
-  if (!origin) return true; // Allow same-origin requests
-  return ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed));
-}
-
-// Initialize Redis with environment variables from Upstash
 const redis = new Redis({
   url: process.env.KV_REST_API_URL,
   token: process.env.KV_REST_API_TOKEN,
 });
 
-// Rate limiting config
-const RATE_LIMIT = {
-  FREE_TIER_CHECKS: 2,
-  RESET_WINDOW_SECONDS: 24 * 60 * 60, // 24 hours
-  WINDOW_MS: 24 * 60 * 60 * 1000, // 24 hours
-  DAILY_BUDGET: 50, // $50/day max spend
-  COST_PER_CHECK: 0.015, // Average cost
+const isAllowedOrigin = (origin) => {
+  const allowedOrigins = [
+    'https://signalnoise.tech',
+    'https://www.signalnoise.tech',
+    'http://localhost:3000',
+  ];
+  return allowedOrigins.includes(origin);
 };
 
 export async function POST(request) {
@@ -38,48 +29,50 @@ export async function POST(request) {
         error: { message: 'Unauthorized origin' } 
       }, { status: 403 });
     }
-// Rate limiting check
-const fingerprintId = request.headers.get('x-fingerprint-id');
 
-if (!fingerprintId) {
-  return NextResponse.json({ 
-    error: { message: 'Missing authentication. Please refresh the page.' } 
-  }, { status: 400 });
-}
+    // Rate limiting check
+    const fingerprintId = request.headers.get('x-fingerprint-id');
 
-// Check if user is Pro
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL,
-  token: process.env.KV_REST_API_TOKEN,
-});
-
-const proStatus = await redis.get(`pro:${fingerprintId}`);
-const isPro = proStatus === 'active';
-
-// Check bonus checks
-const bonusChecks = parseInt(await redis.get(`bonus:${fingerprintId}`) || 0);
-
-// Check daily usage
-const today = new Date().toISOString().split('T')[0];
-const usageKey = `usage:${fingerprintId}:${today}`;
-const currentUsage = parseInt(await redis.get(usageKey) || 0);
-
-// Enforce limit
-if (!isPro && bonusChecks === 0 && currentUsage >= 2) {
-  return NextResponse.json({
-    error: { 
-      message: 'Free tier limit reached (2 checks/day). Upgrade to Pro for unlimited checks or use a promo code for bonus checks.' 
+    if (!fingerprintId) {
+      return NextResponse.json({ 
+        error: { message: 'Missing authentication. Please refresh the page.' } 
+      }, { status: 400 });
     }
-  }, { status: 429 });
-}
 
-// Increment usage or decrement bonus
-if (bonusChecks > 0) {
-  await redis.decr(`bonus:${fingerprintId}`);
-} else if (!isPro) {
-  await redis.incr(usageKey);
-  await redis.expire(usageKey, 86400); // Expire after 24 hours
-}
+    // Check if user is Pro
+    const proStatus = await redis.get(`pro:${fingerprintId}`);
+    const isPro = proStatus === 'active';
+
+    // Check bonus checks
+    const bonusChecks = parseInt(await redis.get(`bonus:${fingerprintId}`) || 0);
+
+    // Check daily usage
+    const today = new Date().toISOString().split('T')[0];
+    const usageKey = `usage:${fingerprintId}:${today}`;
+    const currentUsage = parseInt(await redis.get(usageKey) || 0);
+
+    console.log('RATE LIMIT CHECK:', { fingerprintId, isPro, bonusChecks, currentUsage });
+
+    // Enforce limit
+    if (!isPro && bonusChecks === 0 && currentUsage >= 2) {
+      return NextResponse.json({
+        error: { 
+          message: 'Free tier limit reached (2 checks/day). Upgrade to Pro for unlimited checks or use a promo code for bonus checks.' 
+        }
+      }, { status: 429 });
+    }
+
+    // Increment usage or decrement bonus
+    if (bonusChecks > 0) {
+      await redis.decr(`bonus:${fingerprintId}`);
+      console.log('Used bonus check. Remaining:', bonusChecks - 1);
+    } else if (!isPro) {
+      await redis.incr(usageKey);
+      await redis.expire(usageKey, 86400); // Expire after 24 hours
+      console.log('Incremented daily usage to:', currentUsage + 1);
+    }
+
+    // Parse request body
     const body = await request.json();
     const { model, max_tokens, system, tools, messages } = body;
     
@@ -90,129 +83,70 @@ if (bonusChecks > 0) {
       }, { status: 400 });
     }
     
-    // Validate message content length (prevent abuse) - INCREASED TO 5MB
+    // Validate message content length (prevent abuse) - 5MB limit
     const totalLength = JSON.stringify(messages).length;
-    if (totalLength > 5000000) { // ~5MB limit
+    if (totalLength > 5000000) {
       return NextResponse.json({ 
         error: { message: 'Request too large. Please use an image under 5MB or shorter text.' } 
       }, { status: 413 });
     }
 
-    // Get user fingerprint from request headers
-    const fingerprint = request.headers.get('x-fingerprint-id');
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-               request.headers.get('x-real-ip') || 
-               'unknown';
+    // Build Anthropic API request
+    const anthropicRequest = {
+      model,
+      max_tokens,
+      messages,
+    };
 
-    console.log('RATE LIMIT CHECK - fingerprint:', fingerprint, 'ip:', ip);
-
-    if (!fingerprint) {
-      return NextResponse.json({ 
-        error: { message: 'Missing fingerprint ID' } 
-      }, { status: 400 });
+    if (system) {
+      anthropicRequest.system = system;
     }
 
-    const userId = fingerprint;
-    const usageKey = `usage:${userId}`;
-    const ipUsageKey = `usage:ip:${ip}`;
-    const costKey = `cost:daily:${new Date().toISOString().split('T')[0]}`;
-
-    // Check if user is Pro subscriber
-    const isPro = await redis.get(`user:${userId}:pro`);
-    console.log('USER:', userId, 'isPro:', isPro);
-
-    // Only apply rate limiting for free tier users
-    if (!isPro) {
-      const usage = await redis.get(usageKey) || 0;
-      const ipUsage = await redis.get(ipUsageKey) || 0;
-      const bonusKey = `bonus:${userId}`;
-      const bonusChecks = parseInt(await redis.get(bonusKey) || '0');
-      
-      console.log('USAGE CHECK:', usageKey, '=', usage, '/ limit:', RATE_LIMIT.FREE_TIER_CHECKS);
-      console.log('IP USAGE CHECK:', ipUsageKey, '=', ipUsage, '/ IP limit: 5');
-      console.log('BONUS CHECKS:', bonusKey, '=', bonusChecks);
-      
-      // Check fingerprint limit (2/day) - but allow if they have bonus checks
-      if (usage >= RATE_LIMIT.FREE_TIER_CHECKS) {
-        if (bonusChecks > 0) {
-          // Use a bonus check
-          await redis.decr(bonusKey);
-          console.log('USED BONUS CHECK - Remaining:', bonusChecks - 1);
-        } else {
-          return NextResponse.json({ 
-            error: { 
-              message: 'Free tier limit reached. You\'ve used your 2 free fact-checks. Upgrade to Pro for unlimited access!',
-              code: 'rate_limit_exceeded',
-              upgradeUrl: '/upgrade'
-            } 
-          }, { status: 429 });
+    if (tools && tools.length > 0) {
+      anthropicRequest.tools = tools.map(tool => {
+        if (tool.type === 'web_search_20250305') {
+          return {
+            type: 'web_search_20250305',
+            name: tool.name || 'web_search',
+            ...(tool.max_uses && { max_uses: tool.max_uses })
+          };
         }
-      }
-      
-      // Check IP limit (5/day - catches incognito abuse) - but allow if they have bonus checks
-      if (ipUsage >= 5) {
-        if (bonusChecks > 0) {
-          // Already decremented above, just log
-          console.log('IP LIMIT HIT - Using bonus check');
-        } else {
-          return NextResponse.json({ 
-            error: { 
-              message: 'Daily limit reached from this network. Upgrade to Pro for unlimited access!',
-              code: 'rate_limit_exceeded',
-              upgradeUrl: '/upgrade'
-            } 
-          }, { status: 429 });
-        }
-      }
+        return tool;
+      });
     }
 
-    // Check daily cost budget (circuit breaker)
-    const costToday = parseFloat(await redis.get(costKey) || '0');
-    if (costToday > RATE_LIMIT.DAILY_BUDGET) {
-      return NextResponse.json({ 
-        error: { 
-          message: 'Service temporarily unavailable. Please try again tomorrow.',
-          code: 'budget_exceeded'
-        } 
-      }, { status: 503 });
-    }
+    console.log('Calling Anthropic API with model:', model);
 
     // Call Anthropic API
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({ model, max_tokens, system, tools, messages }),
-    });
+    const response = await anthropic.messages.create(anthropicRequest);
 
-    if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json({ error }, { status: response.status });
-    }
+    console.log('Anthropic API response received');
 
-    const data = await response.json();
-
-    // Update usage counters (only for free tier users)
-    if (!isPro) {
-      const usage = await redis.get(usageKey) || 0;
-      const ipUsage = await redis.get(ipUsageKey) || 0;
-      await redis.set(usageKey, Number(usage) + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
-      await redis.set(ipUsageKey, Number(ipUsage) + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
-    }
-    
-    // Update daily cost tracking
-    await redis.set(costKey, costToday + RATE_LIMIT.COST_PER_CHECK, { ex: 86400 });
-    
-    // Return the response
-    return NextResponse.json(data);
+    return NextResponse.json(response);
 
   } catch (error) {
     console.error('API Error:', error);
-    return NextResponse.json({ 
-      error: { message: 'Internal server error', details: error.message } 
+    
+    if (error.status === 429) {
+      return NextResponse.json({
+        error: { 
+          message: 'Rate limit exceeded. Please try again in a moment.' 
+        }
+      }, { status: 429 });
+    }
+
+    if (error.status === 400) {
+      return NextResponse.json({
+        error: { 
+          message: error.message || 'Invalid request to AI service.' 
+        }
+      }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      error: { 
+        message: 'An error occurred while processing your request. Please try again.' 
+      }
     }, { status: 500 });
   }
 }
