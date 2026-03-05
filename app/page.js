@@ -726,7 +726,7 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
             // Copy to clipboard
             await navigator.clipboard.writeText(shareUrl);
             
-          alert('✓ Link copied to clipboard!\n\n' + shareUrl);
+          alert('Link copied!\n\nPaste anywhere to share this fact-check.\n\n' + shareUrl);
           } catch (err) {
           console.error('Share error:', err);
           alert(`Failed: ${err.message}`);
