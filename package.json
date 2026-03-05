@@ -15,7 +15,8 @@
   "@vercel/kv": "^1.0.1",
   "@upstash/redis": "^1.28.4",
   "stripe": "^14.14.0",
-  "@fingerprintjs/fingerprintjs": "^4.5.1"
+  "@fingerprintjs/fingerprintjs": "^4.5.1",
+  "@anthropic-ai/sdk": "^0.32.1"
 }
   }
 
