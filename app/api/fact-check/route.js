@@ -38,7 +38,48 @@ export async function POST(request) {
         error: { message: 'Unauthorized origin' } 
       }, { status: 403 });
     }
+// Rate limiting check
+const fingerprintId = request.headers.get('x-fingerprint-id');
 
+if (!fingerprintId) {
+  return NextResponse.json({ 
+    error: { message: 'Missing authentication. Please refresh the page.' } 
+  }, { status: 400 });
+}
+
+// Check if user is Pro
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL,
+  token: process.env.KV_REST_API_TOKEN,
+});
+
+const proStatus = await redis.get(`pro:${fingerprintId}`);
+const isPro = proStatus === 'active';
+
+// Check bonus checks
+const bonusChecks = parseInt(await redis.get(`bonus:${fingerprintId}`) || 0);
+
+// Check daily usage
+const today = new Date().toISOString().split('T')[0];
+const usageKey = `usage:${fingerprintId}:${today}`;
+const currentUsage = parseInt(await redis.get(usageKey) || 0);
+
+// Enforce limit
+if (!isPro && bonusChecks === 0 && currentUsage >= 2) {
+  return NextResponse.json({
+    error: { 
+      message: 'Free tier limit reached (2 checks/day). Upgrade to Pro for unlimited checks or use a promo code for bonus checks.' 
+    }
+  }, { status: 429 });
+}
+
+// Increment usage or decrement bonus
+if (bonusChecks > 0) {
+  await redis.decr(`bonus:${fingerprintId}`);
+} else if (!isPro) {
+  await redis.incr(usageKey);
+  await redis.expire(usageKey, 86400); // Expire after 24 hours
+}
     const body = await request.json();
     const { model, max_tokens, system, tools, messages } = body;
     
