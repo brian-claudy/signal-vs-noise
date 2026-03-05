@@ -741,7 +741,8 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
               btn.style.color = '#607D8B';
             }, 3000);
           } catch (err) {
-            alert('Failed to create share link. Please try again.');
+          console.error('Share error:', err);
+          alert(`Failed: ${err.message}`);
           }
         }}
         style={{
