@@ -726,20 +726,22 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
             // Copy to clipboard
             await navigator.clipboard.writeText(shareUrl);
             
-            // Show success feedback
-            const btn = e.currentTarget;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<span style="font-size:11px">✓</span> LINK COPIED!';
-            btn.style.background = 'rgba(0,200,81,0.12)';
-            btn.style.borderColor = 'rgba(0,200,81,0.3)';
-            btn.style.color = '#00C851';
-            
-            setTimeout(() => {
-              btn.innerHTML = originalText;
-              btn.style.background = 'rgba(255,255,255,0.03)';
-              btn.style.borderColor = 'rgba(255,255,255,0.1)';
-              btn.style.color = '#607D8B';
-            }, 3000);
+         // Show success feedback
+const btn = e.currentTarget;
+if (btn) {
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<span style="font-size:11px">✓</span> LINK COPIED!';
+  btn.style.background = 'rgba(0,200,81,0.12)';
+  btn.style.borderColor = 'rgba(0,200,81,0.3)';
+  btn.style.color = '#00C851';
+
+  setTimeout(() => {
+    btn.innerHTML = originalText;
+    btn.style.background = 'rgba(255,255,255,0.03)';
+    btn.style.borderColor = 'rgba(255,255,255,0.1)';
+    btn.style.color = '#607D8B';
+  }, 3000);
+}
           } catch (err) {
           console.error('Share error:', err);
           alert(`Failed: ${err.message}`);
