@@ -1134,7 +1134,7 @@ export default function FactChecker() {
       catch(e) { triage = { escalate: true, escalateReason: "Could not parse triage — defaulting to Sonnet", initialConfidence: 0 }; }
 
       const shouldEscalate = triage.escalate === true || (triage.initialConfidence ?? 100) < 85;
-      const finalModel = shouldEscalate ? "claude-sonnet-4-5-20250929" : "claude-haiku-4-5-20251001";
+      const finalModel = shouldEscalate ? "claude-sonnet-4-6-20250514" : "claude-haiku-4-5-20251001";
       const finalModelLabel = shouldEscalate ? "Sonnet" : "Haiku";
 
       if (shouldEscalate) {
