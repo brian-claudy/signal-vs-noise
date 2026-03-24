@@ -1051,7 +1051,7 @@ export default function FactChecker() {
         const deepResult = await runAgenticLoop(
           DEEP_RESEARCH_PROMPT,
           deepMessage,
-          "claude-sonnet-4-5-20250929",
+          "claude-sonnet-4-6-20250514",
           controller,
           "DEEP RESEARCH"
         );
