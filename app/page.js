@@ -852,7 +852,7 @@ export default function FactChecker() {
     const MAX_TURNS = deepResearchMode ? 12 : 5;
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const timeoutId = setTimeout(() => controller.abort(), deepResearchMode ? 90000 : 40000);
+      const timeoutId = setTimeout(() => controller.abort(), deepResearchMode ? 90000 : 60000);
       let response;
       try {
         response = await fetch("/api/fact-check", {
