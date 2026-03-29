@@ -5,20 +5,20 @@ import { Bebas_Neue, DM_Sans, JetBrains_Mono } from 'next/font/google';
 const bebasNeue = Bebas_Neue({ 
   weight: '400',
   subsets: ['latin'],
-  display: 'optional', // This prevents flash!
+  display: 'optional',
   fallback: ['system-ui', 'arial'],
 });
 const dmSans = DM_Sans({ 
   weight: ['300', '400', '500', '600'],
   subsets: ['latin'],
-  display: 'optional', // This prevents flash!
+  display: 'optional',
   fallback: ['system-ui', 'arial'],
 });
 
 const jetBrainsMono = JetBrains_Mono({ 
   weight: ['400', '700'],
   subsets: ['latin'],
-  display: 'optional', // This prevents flash!
+  display: 'optional',
   fallback: ['Courier New', 'monospace'],
 });
 
@@ -51,7 +51,9 @@ ANTI-HALLUCINATION RULES:
 CRITICAL: You MUST respond with ONLY valid JSON. Even if the claim is obviously true or false, you MUST still return JSON. No exceptions. No prose. No explanations. ONLY the JSON object below.
 
 Required JSON format:
-{"escalate":true|false,"escalateReason":"One sentence reason if escalating, empty string if not","initialConfidence":0-100,"claimCategories":["category1","category2"],"quickSummary":"One sentence description of what this post claims"}`;
+{"escalate":true|false,"escalateReason":"One sentence reason if escalating, empty string if not","initialConfidence":0-100,"claimCategories":["category1","category2"],"quickSummary":"One sentence description of what this post claims"}
+
+FINAL REMINDER: Your response must start with { and end with }. No text before or after the JSON. No markdown code fences. No explanations.`;
 
 // ── Full analysis prompt ────────────────────────────────────────────────────
 const ANALYSIS_PROMPT = `You are a world-class fact-checker and misinformation analyst with access to real-time web search. Analyze social media claims with rigorous, evidence-based reasoning.
@@ -104,8 +106,9 @@ CRITICAL OUTPUT RULES:
 Required JSON structure (output this and nothing else after searching):
 {"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"One sentence verdict.","claims":[{"claim":"Specific claim","status":"TRUE|FALSE|MISLEADING|UNVERIFIABLE","explanation":"Evidence-based explanation citing actual search results, under 200 chars."}],"context":"Key background a reader needs to know, under 220 chars.","redFlags":["Conspiracy hashtag: #example","Tactic: real facts used to imply fabricated connection","Loaded language: emotionally charged phrasing"],"citations":[{"title":"Source name or article title","url":"https://...","cited_text":"Direct quote from source if available","page_age":"Last updated date if available"}],"factCheckMatch":"Name of fact-check site (Snopes, PolitiFact, etc.) if a matching fact-check was found, empty string if not","bottomLine":"Plain English takeaway under 220 chars."}
 
-Be direct and specific. Name exact tactics. Call out hashtags. Base everything on your actual search findings. If you cannot verify something, say so clearly.`;
+Be direct and specific. Name exact tactics. Call out hashtags. Base everything on your actual search findings. If you cannot verify something, say so clearly.
 
+FINAL REMINDER: Your response must start with { and end with }. No text before or after the JSON. No markdown code fences. No explanations.`;
 // ── Quick Check prompt ──────────────────────────────────────────────────────
 const QUICK_CHECK_PROMPT = `You are a fast fact-checker. Quickly assess this claim with 1-2 web searches.
 
@@ -126,7 +129,9 @@ CRITICAL OUTPUT RULES:
 - Only include URLs you actually retrieved in searches.
 
 Required JSON (output this and nothing else):
-{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"One sentence verdict under 150 chars based on actual search results.","bottomLine":"Quick takeaway under 150 chars.","citations":[{"title":"Source","url":"https://..."}]}`;
+{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"One sentence verdict under 150 chars based on actual search results.","bottomLine":"Quick takeaway under 150 chars.","citations":[{"title":"Source","url":"https://..."}]}
+
+FINAL REMINDER: Your response must start with { and end with }. No text before or after the JSON. No markdown code fences. No explanations.`;
 
 // ── Deep Research prompt ────────────────────────────────────────────────────
 const DEEP_RESEARCH_PROMPT = `You are an elite fact-checking investigative researcher conducting deep analysis of misinformation claims. This is a comprehensive research task requiring 10-15 searches.
@@ -185,7 +190,9 @@ CRITICAL OUTPUT RULES:
 - "citations" must be from your ACTUAL search results only
 
 Required JSON structure:
-{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"Comprehensive verdict based on deep research.","claims":[{"claim":"Specific claim","status":"TRUE|FALSE|MISLEADING|UNVERIFIABLE","explanation":"Detailed evidence-based explanation citing sources, under 250 chars."}],"context":"Critical background from deep research, under 250 chars.","redFlags":["Specific manipulation tactic or red flag identified"],"citations":[{"title":"Source name","url":"https://...","cited_text":"Direct quote if available","page_age":"Last updated if available"}],"factCheckMatch":"Name of fact-check site if matching fact-check found, empty string if not","bottomLine":"Comprehensive takeaway from deep research, under 250 chars.","researchDepth":"Number of searches conducted and key insights discovered"}`;
+{"verdict":"FACT|MOSTLY FACT|MISLEADING|MOSTLY FALSE|FALSE|UNVERIFIABLE","confidence":0-100,"summary":"Comprehensive verdict based on deep research.","claims":[{"claim":"Specific claim","status":"TRUE|FALSE|MISLEADING|UNVERIFIABLE","explanation":"Detailed evidence-based explanation citing sources, under 250 chars."}],"context":"Critical background from deep research, under 250 chars.","redFlags":["Specific manipulation tactic or red flag identified"],"citations":[{"title":"Source name","url":"https://...","cited_text":"Direct quote if available","page_age":"Last updated if available"}],"factCheckMatch":"Name of fact-check site if matching fact-check found, empty string if not","bottomLine":"Comprehensive takeaway from deep research, under 250 chars.","researchDepth":"Number of searches conducted and key insights discovered"}
+
+FINAL REMINDER: Your response must start with { and end with }. No text before or after the JSON. No markdown code fences. No explanations.`;
 
 const DEMO_CLAIM = "Breaking: The CDC just admitted that 90% of vaccinated people have severe side effects. Mainstream media is hiding this!";
 
@@ -267,7 +274,6 @@ function ClaimCard({ claim, index }) {
     </div>
   );
 }
-
 function generateReport(result, urlInput, textInput, hasImage) {
   const verdictLabels = {
     "FACT": "VERIFIED FACT", "MOSTLY FACT": "MOSTLY ACCURATE",
@@ -420,7 +426,6 @@ function generateReport(result, urlInput, textInput, hasImage) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
-
 function ResultPanel({ result, urlInput, textInput, hasImage }) {
   const cfg = verdictConfig[result.verdict] || verdictConfig["UNVERIFIABLE"];
   const [showRedFlags, setShowRedFlags] = useState(false);
@@ -705,43 +710,21 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
           </>
         )}
       </button>
-<button
+      <button
         onClick={async () => {
           try {
-            // Save fact-check to database
             const response = await fetch('/api/save-check', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                result, 
-                urlInput, 
-                textInput, 
-                hasImage 
-              })
+              body: JSON.stringify({ result, urlInput, textInput, hasImage })
             });
-            
             const { id } = await response.json();
             const shareUrl = `https://signalnoise.tech/check/${id}`;
-            
-            // Copy to clipboard
             await navigator.clipboard.writeText(shareUrl);
-            
-            // Show success feedback
-            const btn = event.currentTarget;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<span style="font-size:11px">✓</span> LINK COPIED!';
-            btn.style.background = 'rgba(0,200,81,0.12)';
-            btn.style.borderColor = 'rgba(0,200,81,0.3)';
-            btn.style.color = '#00C851';
-            
-            setTimeout(() => {
-              btn.innerHTML = originalText;
-              btn.style.background = 'rgba(255,255,255,0.03)';
-              btn.style.borderColor = 'rgba(255,255,255,0.1)';
-              btn.style.color = '#607D8B';
-            }, 3000);
+            alert('Link copied!\n\nPaste anywhere to share this fact-check.\n\n' + shareUrl);
           } catch (err) {
-            alert('Failed to create share link. Please try again.');
+            console.error('Share error:', err);
+            alert(`Failed: ${err.message}`);
           }
         }}
         style={{
@@ -774,36 +757,17 @@ function ResultPanel({ result, urlInput, textInput, hasImage }) {
       </button>
       <button
         onClick={async () => {
-          const shareText = `🎯 Fact-Check Results: ${result.verdict}
-
-📊 Bottom Line: ${result.bottomLine}
-
-${result.claims?.length > 0 ? `🔍 Key Claims:
-${result.claims.slice(0, 3).map((c, i) => `${i+1}. ${c.status}: ${c.claim}`).join('\n')}` : ''}
-
-Fact-checked with Signal vs Noise AI
-`;
+          const shareText = `🎯 Fact-Check Results: ${result.verdict}\n\n📊 Bottom Line: ${result.bottomLine}\n\n${result.claims?.length > 0 ? `🔍 Key Claims:\n${result.claims.slice(0, 3).map((c, i) => `${i+1}. ${c.status}: ${c.claim}`).join('\n')}` : ''}\n\nFact-checked with Signal vs Noise AI\n`;
           if (navigator.share) {
             try {
-              await navigator.share({
-                title: `Fact-Check: ${result.verdict}`,
-                text: shareText,
-                url: window.location.href
-              });
+              await navigator.share({ title: `Fact-Check: ${result.verdict}`, text: shareText, url: window.location.href });
             } catch (err) {
               if (err.name !== 'AbortError') console.log('Share failed:', err);
             }
           } else {
             try {
               await navigator.clipboard.writeText(shareText);
-              const btn = event.currentTarget;
-              const originalText = btn.innerHTML;
-              btn.innerHTML = '<span style="font-size:11px">✓</span> COPIED TO CLIPBOARD';
-              btn.style.color = '#00C851';
-              setTimeout(() => {
-                btn.innerHTML = originalText;
-                btn.style.color = '#546E7A';
-              }, 2000);
+              alert('Copied to clipboard!');
             } catch (err) {
               alert('Could not copy to clipboard. Please try again.');
             }
@@ -840,15 +804,7 @@ Fact-checked with Signal vs Noise AI
         onClick={() => {
           const claimText = textInput || urlInput || "Claim analyzed";
           const claimPreview = claimText.length > 100 ? claimText.substring(0, 100) + "..." : claimText;
-          const tweetText = `CLAIM: "${claimPreview}"
-
-VERDICT: ${result.verdict}
-${result.bottomLine.substring(0, 100)}
-
-Full analysis with sources:
-👉 Export the HTML report for complete breakdown
-
-#FactCheck #SignalVsNoise`;
+          const tweetText = `CLAIM: "${claimPreview}"\n\nVERDICT: ${result.verdict}\n${result.bottomLine.substring(0, 100)}\n\nFull analysis with sources:\n👉 Export the HTML report for complete breakdown\n\n#FactCheck #SignalVsNoise`;
           const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
           window.open(tweetUrl, '_blank', 'width=550,height=420');
         }}
@@ -881,7 +837,6 @@ Full analysis with sources:
     </div>
   );
 }
-
 export default function FactChecker() {
   const [urlInput, setUrlInput] = useState("");
   const [textInput, setTextInput] = useState("");
@@ -927,7 +882,7 @@ export default function FactChecker() {
     const MAX_TURNS = deepResearchMode ? 12 : 5;
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const timeoutId = setTimeout(() => controller.abort(), deepResearchMode ? 90000 : 40000);
+      const timeoutId = setTimeout(() => controller.abort(), deepResearchMode ? 90000 : 60000);
       let response;
       try {
         response = await fetch("/api/fact-check", {
@@ -937,7 +892,7 @@ export default function FactChecker() {
             "x-fingerprint-id": visitorId || "anonymous"
           },
           signal: controller.signal,
-          body: JSON.stringify({ model, max_tokens: 2048, system: systemPrompt, tools, messages })
+          body: JSON.stringify({ model, max_tokens: 4096, system: systemPrompt, tools, messages })
         });
       } finally {
         clearTimeout(timeoutId);
@@ -1126,7 +1081,7 @@ export default function FactChecker() {
         const deepResult = await runAgenticLoop(
           DEEP_RESEARCH_PROMPT,
           deepMessage,
-          "claude-sonnet-4-5-20250929",
+          "claude-sonnet-4-6",
           controller,
           "DEEP RESEARCH"
         );
@@ -1209,7 +1164,7 @@ export default function FactChecker() {
       catch(e) { triage = { escalate: true, escalateReason: "Could not parse triage — defaulting to Sonnet", initialConfidence: 0 }; }
 
       const shouldEscalate = triage.escalate === true || (triage.initialConfidence ?? 100) < 85;
-      const finalModel = shouldEscalate ? "claude-sonnet-4-5-20250929" : "claude-haiku-4-5-20251001";
+      const finalModel = shouldEscalate ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001";
       const finalModelLabel = shouldEscalate ? "Sonnet" : "Haiku";
 
       if (shouldEscalate) {
@@ -1290,8 +1245,7 @@ export default function FactChecker() {
     setResult(item.result);
     setError(null);
   };
-
-return (
+  return (
     <>
       <style>{`
         :root {
