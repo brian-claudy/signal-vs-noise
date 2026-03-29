@@ -933,12 +933,11 @@ export default function FactChecker() {
     return finalText;
   };
 
-  const parseJSON = (text) => {
+const parseJSON = (text) => {
     try {
       try {
         return JSON.parse(text);
-      } catch (e) {
-      }
+      } catch (e) {}
       
       let clean = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
       
@@ -946,28 +945,23 @@ export default function FactChecker() {
       if (firstBrace === -1) throw new Error('No JSON found in response');
       
       clean = clean.slice(firstBrace);
-      const lastBrace = clean.lastIndexOf('}');
-      if (lastBrace === -1) throw new Error('No closing brace found');
       
-      clean = clean.slice(0, lastBrace + 1);
-      
-      const lines = clean.split('\n');
-      let jsonLines = [];
-      let inJson = false;
       let braceCount = 0;
-      
-      for (const line of lines) {
-        for (const char of line) {
-          if (char === '{') braceCount++;
-          if (char === '}') braceCount--;
+      let endIndex = -1;
+      for (let i = 0; i < clean.length; i++) {
+        if (clean[i] === '{') braceCount++;
+        if (clean[i] === '}') braceCount--;
+        if (braceCount === 0) {
+          endIndex = i;
+          break;
         }
-        
-        if (line.includes('{')) inJson = true;
-        if (inJson) jsonLines.push(line);
-        if (braceCount === 0 && inJson) break;
       }
       
-      return JSON.parse(jsonLines.join('\n'));
+      if (endIndex === -1) throw new Error('No matching closing brace found — response may have been truncated');
+      
+      clean = clean.slice(0, endIndex + 1);
+      
+      return JSON.parse(clean);
     } catch (e) {
       console.error('JSON PARSE ERROR:', e, 'TEXT:', text.substring(0, 500));
       throw new Error('Failed to parse fact-check result');
