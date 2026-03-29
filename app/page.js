@@ -1051,7 +1051,7 @@ export default function FactChecker() {
         const deepResult = await runAgenticLoop(
           DEEP_RESEARCH_PROMPT,
           deepMessage,
-          "claude-sonnet-4-6-20250514",
+          "claude-sonnet-4-6",
           controller,
           "DEEP RESEARCH"
         );
@@ -1134,7 +1134,7 @@ export default function FactChecker() {
       catch(e) { triage = { escalate: true, escalateReason: "Could not parse triage — defaulting to Sonnet", initialConfidence: 0 }; }
 
       const shouldEscalate = triage.escalate === true || (triage.initialConfidence ?? 100) < 85;
-      const finalModel = shouldEscalate ? "claude-sonnet-4-6-20250514" : "claude-haiku-4-5-20251001";
+      const finalModel = shouldEscalate ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001";
       const finalModelLabel = shouldEscalate ? "Sonnet" : "Haiku";
 
       if (shouldEscalate) {
