@@ -1169,9 +1169,12 @@ const parseJSON = (text) => {
         setLoadingSubtext("Running fact-check analysis");
       }
 
+     const jsonReminder = "\n\nIMPORTANT: After completing your searches, respond with ONLY a raw JSON object. No prose, no markdown, no explanation. Start your response with { and end with }.";
+      const finalUserMessage = uploadedImage && messageContent ? messageContent : (typeof userMessage === 'string' ? userMessage + jsonReminder : userMessage);
+      
       const analysisText = await runAgenticLoop(
         ANALYSIS_PROMPT,
-        uploadedImage && messageContent ? messageContent : userMessage,
+        finalUserMessage,
         finalModel,
         controller,
         shouldEscalate ? "SONNET SEARCHING" : "HAIKU SEARCHING"
