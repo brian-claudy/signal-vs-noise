@@ -1,87 +1,142 @@
 import { NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
+import Anthropic from '@anthropic-ai/sdk';
+import { Redis } from '@upstash/redis';
 
-// Rate limiting config
-const RATE_LIMIT = {
-  FREE_TIER_CHECKS: 2,
-  WINDOW_MS: 24 * 60 * 60 * 1000, // 24 hours
-  DAILY_BUDGET: 50, // $50/day max spend
-  COST_PER_CHECK: 0.015, // Average cost
+export const maxDuration = 60;
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL,
+  token: process.env.KV_REST_API_TOKEN,
+});
+
+const isAllowedOrigin = (origin) => {
+  const allowedOrigins = [
+    'https://signalnoise.tech',
+    'https://www.signalnoise.tech',
+    'http://localhost:3000',
+  ];
+  return allowedOrigins.includes(origin);
 };
 
 export async function POST(request) {
   try {
-    // Get request body
-    const body = await request.json();
-    const { model, max_tokens, system, tools, messages } = body;
-
-    // Get user fingerprint from request headers (will come from FingerprintJS)
-    const fingerprint = request.headers.get('x-fingerprint-id');
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    
-    if (!fingerprint) {
-      return NextResponse.json({ error: { message: 'Missing fingerprint ID' } }, { status: 400 });
+    const origin = request.headers.get('origin');
+    if (!isAllowedOrigin(origin)) {
+      return NextResponse.json({ 
+        error: { message: 'Unauthorized origin' } 
+      }, { status: 403 });
     }
 
-    // Create composite key for rate limiting
-    const userId = `${fingerprint}|${ip}`;
-    const usageKey = `usage:${userId}`;
-    const costKey = `cost:today:${new Date().toISOString().split('T')[0]}`;
+    const fingerprintId = request.headers.get('x-fingerprint-id');
 
-    // Check usage count
-    const usage = await kv.get(usageKey) || 0;
-    
-    if (usage >= RATE_LIMIT.FREE_TIER_CHECKS) {
+    if (!fingerprintId) {
       return NextResponse.json({ 
+        error: { message: 'Missing authentication. Please refresh the page.' } 
+      }, { status: 400 });
+    }
+
+    const proStatus = await redis.get(`pro:${fingerprintId}`);
+    const isPro = proStatus === 'active';
+
+    const bonusChecks = parseInt(await redis.get(`bonus:${fingerprintId}`) || 0);
+
+    const today = new Date().toISOString().split('T')[0];
+    const usageKey = `usage:${fingerprintId}:${today}`;
+    const currentUsage = parseInt(await redis.get(usageKey) || 0);
+
+    console.log('RATE LIMIT CHECK:', { fingerprintId, isPro, bonusChecks, currentUsage });
+
+    if (!isPro && bonusChecks === 0 && currentUsage >= 2) {
+      return NextResponse.json({
         error: { 
-          message: 'Free tier limit reached. You\'ve used your 2 free fact-checks.',
-          code: 'rate_limit_exceeded'
-        } 
+          message: 'Free tier limit reached (2 checks/day). Upgrade to Pro for unlimited checks or use a promo code for bonus checks.' 
+        }
       }, { status: 429 });
     }
 
-    // Check daily cost budget (circuit breaker)
-    const costToday = await kv.get(costKey) || 0;
-    if (costToday > RATE_LIMIT.DAILY_BUDGET) {
+    if (bonusChecks > 0) {
+      await redis.decr(`bonus:${fingerprintId}`);
+      console.log('Used bonus check. Remaining:', bonusChecks - 1);
+    } else if (!isPro) {
+      await redis.incr(usageKey);
+      await redis.expire(usageKey, 86400);
+      console.log('Incremented daily usage to:', currentUsage + 1);
+    }
+
+    const body = await request.json();
+    const { model, max_tokens, system, tools, messages } = body;
+    
+    if (!model || !messages || !Array.isArray(messages)) {
       return NextResponse.json({ 
-        error: { 
-          message: 'Service temporarily unavailable. Please try again tomorrow.',
-          code: 'budget_exceeded'
-        } 
-      }, { status: 503 });
+        error: { message: 'Invalid request format' } 
+      }, { status: 400 });
+    }
+    
+    const totalLength = JSON.stringify(messages).length;
+    if (totalLength > 5000000) {
+      return NextResponse.json({ 
+        error: { message: 'Request too large. Please use an image under 5MB or shorter text.' } 
+      }, { status: 413 });
     }
 
-    // Call Anthropic API
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({ model, max_tokens, system, tools, messages }),
-    });
+    const anthropicRequest = {
+      model,
+      max_tokens,
+      messages,
+    };
 
-    if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json({ error }, { status: response.status });
+    if (system) {
+      anthropicRequest.system = system;
     }
 
-    const data = await response.json();
+    if (tools && tools.length > 0) {
+      anthropicRequest.tools = tools.map(tool => {
+        if (tool.type === 'web_search_20250305') {
+          return {
+            type: 'web_search_20250305',
+            name: tool.name || 'web_search',
+            ...(tool.max_uses && { max_uses: tool.max_uses })
+          };
+        }
+        return tool;
+      });
+    }
 
-    // Update usage counter (expire after 24 hours)
-    await kv.set(usageKey, usage + 1, { ex: Math.floor(RATE_LIMIT.WINDOW_MS / 1000) });
+    console.log('Calling Anthropic API with model:', model);
 
-    // Update daily cost tracking
-    await kv.set(costKey, costToday + RATE_LIMIT.COST_PER_CHECK, { ex: 86400 }); // Expire at end of day
+    const response = await anthropic.messages.create(anthropicRequest);
 
-    // Return the response
-    return NextResponse.json(data);
+    console.log('Anthropic API response received');
+
+    return NextResponse.json(response);
 
   } catch (error) {
     console.error('API Error:', error);
-    return NextResponse.json({ 
-      error: { message: 'Internal server error', details: error.message } 
+    
+    if (error.status === 429) {
+      return NextResponse.json({
+        error: { 
+          message: 'Rate limit exceeded. Please try again in a moment.' 
+        }
+      }, { status: 429 });
+    }
+
+    if (error.status === 400) {
+      return NextResponse.json({
+        error: { 
+          message: error.message || 'Invalid request to AI service.' 
+        }
+      }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      error: { 
+        message: 'An error occurred while processing your request. Please try again.' 
+      }
     }, { status: 500 });
   }
 }
