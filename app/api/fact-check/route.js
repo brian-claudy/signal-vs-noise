@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { Redis } from '@upstash/redis';
 
+export const maxDuration = 120;
+
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
@@ -22,7 +24,6 @@ const isAllowedOrigin = (origin) => {
 
 export async function POST(request) {
   try {
-    // Check origin
     const origin = request.headers.get('origin');
     if (!isAllowedOrigin(origin)) {
       return NextResponse.json({ 
@@ -30,7 +31,6 @@ export async function POST(request) {
       }, { status: 403 });
     }
 
-    // Rate limiting check
     const fingerprintId = request.headers.get('x-fingerprint-id');
 
     if (!fingerprintId) {
@@ -39,21 +39,17 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Check if user is Pro
     const proStatus = await redis.get(`pro:${fingerprintId}`);
     const isPro = proStatus === 'active';
 
-    // Check bonus checks
     const bonusChecks = parseInt(await redis.get(`bonus:${fingerprintId}`) || 0);
 
-    // Check daily usage
     const today = new Date().toISOString().split('T')[0];
     const usageKey = `usage:${fingerprintId}:${today}`;
     const currentUsage = parseInt(await redis.get(usageKey) || 0);
 
     console.log('RATE LIMIT CHECK:', { fingerprintId, isPro, bonusChecks, currentUsage });
 
-    // Enforce limit
     if (!isPro && bonusChecks === 0 && currentUsage >= 2) {
       return NextResponse.json({
         error: { 
@@ -62,28 +58,24 @@ export async function POST(request) {
       }, { status: 429 });
     }
 
-    // Increment usage or decrement bonus
     if (bonusChecks > 0) {
       await redis.decr(`bonus:${fingerprintId}`);
       console.log('Used bonus check. Remaining:', bonusChecks - 1);
     } else if (!isPro) {
       await redis.incr(usageKey);
-      await redis.expire(usageKey, 86400); // Expire after 24 hours
+      await redis.expire(usageKey, 86400);
       console.log('Incremented daily usage to:', currentUsage + 1);
     }
 
-    // Parse request body
     const body = await request.json();
     const { model, max_tokens, system, tools, messages } = body;
     
-    // Input validation
     if (!model || !messages || !Array.isArray(messages)) {
       return NextResponse.json({ 
         error: { message: 'Invalid request format' } 
       }, { status: 400 });
     }
     
-    // Validate message content length (prevent abuse) - 5MB limit
     const totalLength = JSON.stringify(messages).length;
     if (totalLength > 5000000) {
       return NextResponse.json({ 
@@ -91,7 +83,6 @@ export async function POST(request) {
       }, { status: 413 });
     }
 
-    // Build Anthropic API request
     const anthropicRequest = {
       model,
       max_tokens,
@@ -117,7 +108,6 @@ export async function POST(request) {
 
     console.log('Calling Anthropic API with model:', model);
 
-    // Call Anthropic API
     const response = await anthropic.messages.create(anthropicRequest);
 
     console.log('Anthropic API response received');
