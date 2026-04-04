@@ -852,7 +852,7 @@ export default function FactChecker() {
     const MAX_TURNS = deepResearchMode ? 12 : 5;
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const timeoutId = setTimeout(() => controller.abort(), deepResearchMode ? 90000 : 60000);
+     const timeoutId = setTimeout(() => controller.abort(), deepResearchMode ? 180000 : 120000);
       let response;
       try {
         response = await fetch("/api/fact-check", {
@@ -862,7 +862,7 @@ export default function FactChecker() {
             "x-fingerprint-id": visitorId || "anonymous"
           },
           signal: controller.signal,
-          body: JSON.stringify({ model, max_tokens: 2048, system: systemPrompt, tools, messages })
+         body: JSON.stringify({ model, max_tokens: 4096, system: systemPrompt, tools, messages })
         });
       } finally {
         clearTimeout(timeoutId);
@@ -1114,43 +1114,18 @@ export default function FactChecker() {
         return;
       }
 
-      setLoadingStatus("HAIKU SCANNING...");
-      setLoadingSubtext("Reading claim and gathering context");
-      const triageMessage = uploadedImage 
-        ? `Quick triage scan — the user uploaded an image${textInput.trim() ? " with context: " + textInput.trim() : ""}. Determine if this needs escalation.`
-        : `Quick triage scan of this claim: ${typeof userMessage === 'string' ? userMessage : 'see content'}`;
+      setLoadingStatus("ANALYZING...");
+      setLoadingSubtext("Searching fact-check databases");
 
-      const triageText = await runAgenticLoop(
-        HAIKU_TRIAGE_PROMPT,
-        triageMessage,
-        "claude-haiku-4-5-20251001",
-        controller,
-        "HAIKU SCANNING"
-      );
-      if (!triageText) throw new Error("Triage scan failed. Please try again.");
-
-      let triage;
-      try { triage = parseJSON(triageText); }
-      catch(e) { triage = { escalate: true, escalateReason: "Could not parse triage — defaulting to Sonnet", initialConfidence: 0 }; }
-
-      const shouldEscalate = triage.escalate === true || (triage.initialConfidence ?? 100) < 85;
-      const finalModel = shouldEscalate ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001";
-      const finalModelLabel = shouldEscalate ? "Sonnet" : "Haiku";
-
-      if (shouldEscalate) {
-        setLoadingStatus("ESCALATING TO SONNET...");
-        setLoadingSubtext("Complex claim detected — using deeper analysis model");
-      } else {
-        setLoadingStatus("HAIKU ANALYZING...");
-        setLoadingSubtext("Running fact-check analysis");
-      }
+      const jsonReminder = "\n\nIMPORTANT: After completing your searches, respond with ONLY a raw JSON object. No prose, no markdown, no explanation. Start your response with { and end with }.";
+      const finalUserMessage = uploadedImage && messageContent ? messageContent : (typeof userMessage === 'string' ? userMessage + jsonReminder : userMessage);
 
       const analysisText = await runAgenticLoop(
         ANALYSIS_PROMPT,
-        uploadedImage && messageContent ? messageContent : userMessage,
-        finalModel,
+        finalUserMessage,
+        "claude-sonnet-4-6",
         controller,
-        shouldEscalate ? "SONNET SEARCHING" : "HAIKU SEARCHING"
+        "SEARCHING"
       );
 
       abortRef.current = null;
@@ -1161,10 +1136,10 @@ export default function FactChecker() {
       catch(e) { throw new Error(`Response parsing failed: ${e.message}. Please try again.`); }
 
       parsed._modelInfo = {
-        model: finalModelLabel,
-        escalated: shouldEscalate,
-        escalateReason: shouldEscalate ? (triage.escalateReason || "Escalation threshold met") : null,
-        categories: triage.claimCategories || []
+        model: "Sonnet",
+        escalated: false,
+        escalateReason: null,
+        categories: []
       };
 
       setModelInfo(parsed._modelInfo);
